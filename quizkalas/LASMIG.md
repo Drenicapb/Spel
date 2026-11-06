@@ -39,4 +39,4 @@ Det finns två sätt att spela musiken:
 
 Loggan och app-ikonen finns i `img/`. På mobilen kan sidan läggas till på hemskärmen (Dela → *Lägg till på hemskärmen*) och får då ikonen.
 
-Innehåll: 365 frågor i 13 kategorier och 4 åldersgrupper, plus 23 Spotify-låtar.
+Innehåll: cirka 3 680 frågor i 13 kategorier och 4 åldersgrupper, plus 281 Spotify-låtar. Appen minns vilka frågor ni redan har fått och tar nya först, och blandar olika sorters frågor så att samma typ inte kommer många gånger i rad.

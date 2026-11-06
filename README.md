@@ -21,6 +21,6 @@ Mappen `illyrian/` byggs separat (inte från `Apk-test`) – låt den vara kvar 
 
 Kahoot-likt quiz för hela familjen – storskärmen visar frågorna och alla svarar med mobilen: **https://drpatri-ai.github.io/Spel/quizkalas/**
 
-365 frågor i 13 kategorier och 4 åldersgrupper, musikfrågor via Spotify och egna quiz. Se `quizkalas/LASMIG.md`.
+Cirka 3 680 frågor i 13 kategorier och 4 åldersgrupper, 281 musikfrågor via Spotify och egna quiz. Se `quizkalas/LASMIG.md`.
 
 Mappen `quizkalas/` byggs separat (inte från `Apk-test`) – låt den vara kvar när Bucinca-filerna kopieras hit.

@@ -22,10 +22,26 @@ window.QK_CATS = {
 };
 
 window.QK_BANK = [];
-(function () {
+/* Hjälpfunktioner som även används av bank-*.js.
+ * gq(kategori, åldrar, svårighet, grupp, fråga, rätt, liknandeFelsvar[], övrigaFelsvar[]) väljer tre felsvar,
+ * helst bland de "liknande" (t.ex. huvudstäder i samma världsdel). Slumpen är fröad så att frågorna blir likadana varje gång. */
+window.QKB = (function () {
   const B = window.QK_BANK;
+  let seed = 20261106;
+  const rand = () => { seed = (Math.imul(seed, 1664525) + 1013904223) >>> 0; return seed / 4294967296; };
+  const shuf = a => { a = [...a]; for (let i = a.length - 1; i > 0; i--) { const j = Math.floor(rand() * (i + 1)); [a[i], a[j]] = [a[j], a[i]]; } return a; };
+  const pick = (ok, preferred, fallback, n = 3) => {
+    const out = [], seen = new Set([String(ok).toLowerCase()]);
+    for (const x of [...shuf(preferred || []), ...shuf(fallback || [])]) { const k = String(x).toLowerCase(); if (!seen.has(k)) { seen.add(k); out.push(String(x)); } if (out.length === n) break; }
+    return out;
+  };
   const q = (c, a, d, text, ok, ...wrong) => B.push({ c, a, d, q: text, o: [ok, ...wrong] });
   const tf = (c, a, d, text, ok) => B.push({ c, a, d, q: text, tf: ok });
+  const gq = (c, a, d, g, text, ok, preferred, fallback) => { const w = pick(ok, preferred, fallback); if (w.length >= 2) B.push({ c, a, d, g, q: text, o: [String(ok), ...w] }); };
+  return { q, tf, gq, pick, shuf, rand };
+})();
+(function () {
+  const { q, tf } = window.QKB;
 
   // ───────────── DJUR & NATUR ─────────────
   q('djur','0',1,'Vad säger kon? 🐄','Mu','Voff','Mjau','Kvack');
@@ -418,31 +434,3 @@ window.QK_BANK = [];
   q('teknik','0',1,'Vad behöver en mobil när batteriet är slut? 🔋','Laddas','Vattnas','Matas','Tvättas');
   q('teknik','12',2,'Vad kallas den lilla bilden man trycker på för att öppna en app?','Ikon','Pixel','Fil','Mapp');
 })();
-
-/* Spotify-låtar till musikfrågorna. id = Spotify-låt-ID (från open.spotify.com/track/ID).
- * a = åldrar som låten passar. Egna låtar läggs till i appen under "Mina låtar". */
-window.QK_SONGS = [
-  { id:'4vSuothg7NLVAeKNY3oSw4', t:'Dancing Queen',            ar:'ABBA',                  y:1976, a:'0123' },
-  { id:'0qcr5FMsEO85NAQjrlDRKo', t:'Let It Go',                ar:'Idina Menzel',          y:2013, a:'012'  },
-  { id:'6NPVjNh8Jhru9xOmyQigds', t:'Happy',                    ar:'Pharrell Williams',     y:2013, a:'0123' },
-  { id:'294vBlXfZYspeI29SXZaON', t:'Wake Me Up',               ar:'Avicii',                y:2013, a:'123'  },
-  { id:'1DmW5Ep6ywYwxc2HMT5BG6', t:'Tattoo',                   ar:'Loreen',                y:2023, a:'123'  },
-  { id:'0VjIjW4GlUZAMYd2vXMi3b', t:'Blinding Lights',          ar:'The Weeknd',            y:2019, a:'123'  },
-  { id:'3MrRksHupTVEQ7YbA0FsZK', t:'The Final Countdown',      ar:'Europe',                y:1986, a:'123'  },
-  { id:'1KRpJeeB2JEG6AW6Uri3QX', t:'Bohemian Rhapsody',        ar:'Queen',                 y:1975, a:'23'   },
-  { id:'7J1uxwnxfQLu4APicE5Rnj', t:'Billie Jean',              ar:'Michael Jackson',       y:1982, a:'123'  },
-  { id:'7qiZfU4dY1lWllzX7mPBI3', t:'Shape of You',             ar:'Ed Sheeran',            y:2017, a:'123'  },
-  { id:'32OlwWuMpZ6b0aN2RZOeMS', t:'Uptown Funk',              ar:'Mark Ronson & Bruno Mars', y:2014, a:'0123' },
-  { id:'367xWyOrpCoBOuxYGTybFc', t:'bad guy',                  ar:'Billie Eilish',         y:2019, a:'123'  },
-  { id:'7DSAEUvxU8FajXtRloy8M0', t:'Flowers',                  ar:'Miley Cyrus',           y:2023, a:'123'  },
-  { id:'4PB8ogrqkzwg90cqPk06xP', t:'Heroes',                   ar:'Måns Zelmerlöw',        y:2015, a:'123'  },
-  { id:'6qB7YcFpeBEQa0D6QO482y', t:'It Must Have Been Love',   ar:'Roxette',               y:1990, a:'23'   },
-  { id:'34k2uDVZqj0jnxEO6CVBtQ', t:'Wannabe',                  ar:'Spice Girls',           y:1996, a:'23'   },
-  { id:'3m1U5hxuhIZS5O1xMZgPaE', t:'Baby Shark',               ar:'Pinkfong',              y:2016, a:'01'   },
-  { id:'1WkMMavIMc4JZ8cfMmxHkI', t:"Can't Stop the Feeling!",  ar:'Justin Timberlake',     y:2016, a:'0123' },
-  { id:'7CUYHcu0RnbOnMz4RuN07w', t:'Despacito',                ar:'Luis Fonsi & Daddy Yankee', y:2017, a:'123' },
-  { id:'2qSkIjg1o9h3YT9RAgYN75', t:'Espresso',                 ar:'Sabrina Carpenter',     y:2024, a:'123'  },
-  { id:'2374M0fQpWi3dLnB54qaLX', t:'Africa',                   ar:'Toto',                  y:1982, a:'23'   },
-  { id:'0r4SsYcwvd8URat6AS2m6f', t:'Lush Life',                ar:'Zara Larsson',          y:2015, a:'123'  },
-  { id:'2V65y3PX4DkRhy1djlxd9p', t:"Don't You Worry Child",    ar:'Swedish House Mafia',   y:2012, a:'123'  },
-];

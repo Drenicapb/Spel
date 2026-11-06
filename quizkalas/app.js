@@ -162,9 +162,25 @@ function autoTime(type, age, setting) {
   if (type === 'music') return Math.max(30, base);
   return type === 'tf' ? Math.max(10, base - 5) : base;
 }
+// Sprid frågorna så att samma frågemall (q.g) inte kommer tätt efter varandra; handskrivna frågor väger lite tyngre
+function spreadGroups(list) {
+  const m = new Map();
+  for (const q of list) { const k = q.g || ''; if (!m.has(k)) m.set(k, []); m.get(k).push(q); }
+  const bs = [...m.entries()].map(([k, a]) => ({ a, w: k ? 1 : 1.6, n: 0 }));
+  const out = []; let last = null;
+  while (out.length < list.length) {
+    const left = bs.filter(b => b.a.length);
+    const live = left.length > 1 ? left.filter(b => b !== last) : left;
+    const wt = b => b.w * Math.sqrt(b.a.length) / (1 + b.n);
+    let r = Math.random() * live.reduce((t, b) => t + wt(b), 0), pick = live[live.length - 1];
+    for (const b of live) { r -= wt(b); if (r <= 0) { pick = b; break; } }
+    out.push(pick.a.shift()); pick.n++; last = pick;
+  }
+  return out;
+}
 function orderPool(list, used, interleaveBands) {
   const fresh = shuffle(list.filter(q => !used.has(hash(q.q)))), old = shuffle(list.filter(q => used.has(hash(q.q))));
-  let out = [...fresh, ...old];
+  let out = [...spreadGroups(fresh), ...spreadGroups(old)];
   if (interleaveBands) {
     const bands = [0, 1, 2, 3].map(b => out.filter(q => bandOf(q) === b));
     out = []; const order = shuffle([0, 1, 2, 3]);
@@ -172,13 +188,21 @@ function orderPool(list, used, interleaveBands) {
   }
   return out;
 }
+const SONG_FILMS = ['Frost', 'Frost 2', 'Vaiana', 'Lejonkungen', 'Encanto', 'Den lilla sjöjungfrun', 'Aladdin', 'Skönheten och odjuret', 'Trassel', 'Coco',
+  'Toy Story', 'Djungelboken', 'Pippi Långstrump', 'Dumma mig', 'Dumma mig 2', 'Trolls', 'Mary Poppins', 'Pocahontas', 'Spider-Man: Into the Spider-Verse', 'Mulan'];
 function musicQuestion(s, age, all) {
-  const variants = age === '0' ? ['title', 'artist'] : ['artist', 'title', 'artist', 'title', 'decade'];
+  const variants = age === '0' ? ['title', 'artist'] : ['artist', 'title', 'artist', 'title'];
+  if (s.y && age !== '0') variants.push('decade');
+  if (s.fi) variants.push('film', 'film');
   let v = variants[Math.floor(Math.random() * variants.length)];
   const near = list => list.map(x => ({ x, k: Math.abs((x.y || 2000) - (s.y || 2000)) + Math.random() * 18 })).sort((a, b) => a.k - b.k).map(o => o.x);
   const pickUnique = (key) => { const seen = new Set([String(s[key]).toLowerCase()]); const out = []; for (const x of near(all)) { const val = String(x[key]); if (!seen.has(val.toLowerCase())) { seen.add(val.toLowerCase()); out.push(val); } if (out.length === 3) break; } return out; };
   let text, right, wrong;
-  if (v === 'decade' && s.y) {
+  if (v === 'film') {
+    const base = x => String(x).replace(/\s*\d+$/, '').toLowerCase();
+    const cands = shuffle([...new Set([...all.map(x => x.fi).filter(Boolean), ...SONG_FILMS])]).filter(f => base(f) !== base(s.fi));
+    text = 'Från vilken film kommer låten? 🎬'; right = s.fi; wrong = cands.slice(0, 3);
+  } else if (v === 'decade' && s.y) {
     const d = Math.floor(s.y / 10) * 10; const cands = shuffle([d - 30, d - 20, d - 10, d + 10, d + 20].filter(x => x >= 1950 && x <= 2020)).sort((a, b) => Math.abs(a - d) - Math.abs(b - d)).slice(0, 3);
     text = 'Från vilket årtionde är låten? 🎧'; right = `${d}-talet`; wrong = cands.map(x => `${x}-talet`);
   } else if (v === 'title') {
@@ -230,7 +254,7 @@ function buildQuiz(o) {
     const idx = shuffle(q.o.map((_, i) => i));
     return { id, type: 'mc', cat: q.c, band: bandOf(q), text: q.q, opts: idx.map(i => q.o[i]), correct: idx.indexOf(0), time: autoTime('mc', o.age, o.time) };
   });
-  store.set('used', [...used, ...runtime.map(q => q.id)].slice(-450));
+  store.set('used', [...used, ...runtime.map(q => q.id)].slice(-2500));
   const catNames = cats.length > 3 ? 'Blandat' : cats.map(c => CATS[c]?.n).join(', ');
   return { title: o.title || `${AGES[o.age].e} ${AGES[o.age].quiz} – ${catNames}`, questions: runtime, age: o.age, gen: o };
 }
