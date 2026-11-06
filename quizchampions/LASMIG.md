@@ -5,9 +5,9 @@ Ett Kahoot-likt quiz för hela familjen. En skärm (TV, dator eller surfplatta) 
 ## Lägg upp spelet (en gång)
 Mobilerna måste kunna öppna sidan via en webbadress, så mappen behöver ligga på en webbserver. Enklast är GitHub Pages:
 
-1. Lägg mappen `quizkalas/` i ett GitHub-repo, till exempel `Spel`.
+1. Lägg mappen `quizchampions/` i ett GitHub-repo, till exempel `Spel`.
 2. I repot: **Settings → Pages → Deploy from a branch → main / (root)**.
-3. Efter någon minut finns spelet på `https://<användarnamn>.github.io/<repo>/quizkalas/`.
+3. Efter någon minut finns spelet på `https://<användarnamn>.github.io/<repo>/quizchampions/`.
 
 ## Spela
 1. Öppna adressen på den stora skärmen och tryck **Starta ett quiz**.

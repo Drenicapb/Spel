@@ -19,8 +19,8 @@ Mappen `illyrian/` byggs separat (inte från `Privat`) – låt den vara kvar n�
 
 ## Quiz Champions
 
-Kahoot-likt quiz för hela familjen – storskärmen visar frågorna och alla svarar med mobilen: **https://drenicapb.github.io/Spel/quizkalas/**
+Kahoot-likt quiz för hela familjen – storskärmen visar frågorna och alla svarar med mobilen: **https://drenicapb.github.io/Spel/quizchampions/**
 
-Cirka 3 680 frågor i 13 kategorier och 4 åldersgrupper, 281 musikfrågor via Spotify, egna quiz och ett enspelarläge. Android-app: **https://drenicapb.github.io/Spel/app/QuizChampions.apk**. Se `quizkalas/LASMIG.md`.
+Cirka 3 680 frågor i 13 kategorier och 4 åldersgrupper, 281 musikfrågor via Spotify, egna quiz och ett enspelarläge. Android-app: **https://drenicapb.github.io/Spel/app/QuizChampions.apk**. Se `quizchampions/LASMIG.md`.
 
-Mappen `quizkalas/` byggs separat (inte från `Privat`) – låt den vara kvar när Bucinca-filerna kopieras hit.
+Mappen `quizchampions/` byggs separat (inte från `Privat`) – låt den vara kvar när Bucinca-filerna kopieras hit.

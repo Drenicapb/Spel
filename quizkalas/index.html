@@ -1,58 +1,27 @@
-<!DOCTYPE html>
+<!doctype html>
 <html lang="sv">
 <head>
 <meta charset="utf-8">
-<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#08184a">
-<meta name="description" content="Quiz Champions – quiz för hela familjen där alla spelar med sin mobil.">
-<title>Quiz Champions</title>
-<link rel="icon" type="image/png" sizes="64x64" href="img/favicon-64.png">
-<link rel="icon" type="image/png" sizes="32x32" href="img/favicon-32.png">
-<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
-<link rel="manifest" href="manifest.webmanifest">
-<meta name="apple-mobile-web-app-capable" content="yes">
-<meta name="mobile-web-app-capable" content="yes">
-<meta name="apple-mobile-web-app-title" content="Quiz Champions">
-<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
-<link rel="preload" as="image" href="img/logo.webp">
-<link rel="preconnect" href="https://fonts.googleapis.com">
-<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=Lilita+One&family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
-<link rel="stylesheet" href="style.css">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>Quiz Champions har flyttat</title>
+<style>
+  body{margin:0;min-height:100vh;display:flex;align-items:center;justify-content:center;background:#0b1a3a;color:#fff;font:18px/1.5 system-ui,sans-serif;text-align:center;padding:16px;box-sizing:border-box}
+  a{display:inline-block;margin-top:16px;padding:14px 24px;border-radius:12px;background:#f5c542;color:#0b1a3a;font-weight:700;text-decoration:none}
+</style>
 </head>
 <body>
-<div id="app"><div class="center-screen"><div class="spinner"></div></div></div>
-
-<div id="spotifyDock" aria-label="Spotify-spelare">
-  <div class="sp-frame">
-    <div id="spEmbed"></div>
-    <div class="sp-mask" aria-hidden="true"><div class="eq"><i></i><i></i><i></i><i></i><i></i></div><span>Lyssna…</span></div>
-  </div>
-  <div class="sp-under">
-    <span class="sp-hint-text">Hör du ingen musik? Tryck på ▶ i spelaren.</span>
-    <span class="sp-fail-text">Spotify-spelaren kunde inte laddas här.</span>
-    <a id="spLink" class="btn spotify small" href="https://open.spotify.com" target="_blank" rel="noopener">Öppna i Spotify</a>
-  </div>
-</div>
-
-<div id="reconn" role="alert"><div class="spinner small"></div><span>Tappade anslutningen – försöker igen…</span><button class="btn small ghost" id="reconnLeave">Lämna</button></div>
-<div id="toast" role="status" aria-live="polite"></div>
-<canvas id="confetti" aria-hidden="true"></canvas>
-
-<script src="vendor/peerjs.min.js"></script>
-<script src="vendor/qrcode.js"></script>
-<script src="bank.js"></script>
-<script src="bank-geo.js"></script>
-<script src="bank-sverige.js"></script>
-<script src="bank-natur.js"></script>
-<script src="bank-hist.js"></script>
-<script src="bank-kultur.js"></script>
-<script src="bank-sprak.js"></script>
-<script src="bank-matte.js"></script>
-<script src="bank-teknik.js"></script>
-<script src="bank-extra.js"></script>
-<script src="songs.js"></script>
-<script src="bank-check.js"></script>
-<script src="app.js"></script>
+<div id="msg">Quiz Champions har flyttat …</div>
+<script>
+  // Gamla adressen /Spel/quizkalas/ – skicka vidare till /Spel/quizchampions/ (med PIN m.m. kvar).
+  var nyUrl = location.href.replace('/quizkalas/', '/quizchampions/').replace(/\/quizkalas$/, '/quizchampions/');
+  var gammalApp = false;
+  try { gammalApp = !!window.QCApp && QCApp.version() === '1.0'; } catch (e) {}
+  if (gammalApp) {
+    // Appen 1.1 känner bara till den gamla adressen – be om den nya versionen.
+    document.getElementById('msg').innerHTML = 'Det finns en ny version av Quiz Champions-appen.<br>Ladda ner och installera den, så fungerar allt igen.<br><a href="../app/QuizChampions.apk">Ladda ner appen</a>';
+  } else {
+    location.replace(nyUrl);
+  }
+</script>
 </body>
 </html>
