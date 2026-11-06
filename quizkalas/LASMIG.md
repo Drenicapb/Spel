@@ -20,6 +20,15 @@ Inställningar i lobbyn:
 - **Läs upp frågorna**: för barn som inte läser ännu. Svaren läses upp med färg ("Röd: Banan").
 - **Auto: gå vidare när alla har svarat** (på som standard): när alla har svarat – eller tiden är slut – visas rätt svar, sedan topplistan och nästa fråga, var och en i 5 sekunder. Knappen **⏩ Auto på / ⏸ Auto av** uppe till höger pausar under spelet, och du kan alltid trycka på knappen för att gå vidare direkt.
 
+## Spela själv (enspelarläge)
+Tryck **Spela själv** på startsidan. Välj quiz på samma sätt som ovan – frågorna och svarsknapparna visas på samma skärm, så det räcker med en mobil eller surfplatta. Snabba rätt svar och svitar ger mer poäng, rätt svar visas efter varje fråga och spelet går vidare av sig självt (tryck **⏸ Vänta** för att stanna kvar). Efteråt ser du antal rätt, poäng, bästa svit och rätt svar på det du missade. Ditt rekord sparas per quiz. Musikfrågorna spelas i Spotifys spelare på samma skärm.
+
+## Android-appen
+Ladda ner **QuizChampions.apk** från https://drpatri-ai.github.io/Spel/app/QuizChampions.apk (eller tryck *Ladda ner Android-appen* längst ner på startsidan i mobilens webbläsare) och installera. Appen är samma spel utan adressfält – webbadressen syns aldrig – och får alltid de senaste frågorna automatiskt. I appen läses frågorna upp på svenska, skärmen hålls tänd och Spotify-länkar öppnas i Spotify-appen.
+
+## Webbadressen
+I lobbyn visas bara PIN-koden och QR-koden; adressen syns först om man trycker *Visa webbadressen*. Den som har appen öppnar den och skriver PIN-koden, alla andra skannar QR-koden med kameran.
+
 ## Musikfrågor (Spotify)
 Det finns två sätt att spela musiken:
 - **På den här skärmen**: Spotifys spelare bäddas in på storskärmen, med titel och omslag suddade tills svaret visas. Utan inloggning spelas ett klipp på 30 sekunder, vilket räcker för en fråga. Om ingen musik hörs, tryck på ▶ i spelaren eller på *Öppna i Spotify*.

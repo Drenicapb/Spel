@@ -102,17 +102,22 @@ const Bgm = {
   },
   stop() { clearInterval(this.timer); this.timer = null; },
 };
+// Android-appen (WebView) har en egen brygga: uppläsning, spara filer och bakåtknappen
+const AppBridge = window.QCApp || null, IN_APP = !!AppBridge;
+if (IN_APP) document.documentElement.classList.add('in-app');
 const Speech = {
   speak(text) {
+    const clean = String(text).replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').replace(/_+/g, ' ');
+    if (IN_APP && AppBridge.speak) { try { AppBridge.speak(clean); } catch {} return; }
     if (!('speechSynthesis' in window)) return;
     try {
       speechSynthesis.cancel();
-      const u = new SpeechSynthesisUtterance(String(text).replace(/[\u{1F000}-\u{1FAFF}\u{2600}-\u{27BF}\u{FE0F}]/gu, '').replace(/_+/g, ' '));
+      const u = new SpeechSynthesisUtterance(clean);
       u.lang = 'sv-SE'; const v = speechSynthesis.getVoices().find(v => /^sv/i.test(v.lang)); if (v) u.voice = v; u.rate = 0.95;
       speechSynthesis.speak(u);
     } catch {}
   },
-  stop() { try { speechSynthesis.cancel(); } catch {} },
+  stop() { try { if (IN_APP && AppBridge.stopSpeak) AppBridge.stopSpeak(); else speechSynthesis.cancel(); } catch {} },
 };
 let wakeLock = null;
 async function keepAwake() { try { if ('wakeLock' in navigator && document.visibilityState === 'visible') wakeLock = await navigator.wakeLock.request('screen'); } catch {} }
@@ -122,15 +127,17 @@ document.addEventListener('visibilitychange', () => { if (document.visibilitySta
 function confetti(ms = 4500) {
   const cv = $('#confetti'), ctx = cv.getContext('2d'); const dpr = window.devicePixelRatio || 1;
   cv.width = innerWidth * dpr; cv.height = innerHeight * dpr; cv.style.display = 'block';
-  const cols = ['#ffd23f', '#ff5fa2', '#3ec7ff', '#7cf07c', '#b07cff', '#ff8a3d'];
+  const cols = ['#ffd23f', '#3ec7ff', '#2563eb', '#7cf07c', '#ffffff', '#ff9f1c'];
   const ps = Array.from({ length: 170 }, () => ({ x: Math.random() * cv.width, y: -Math.random() * cv.height * 0.6, r: (4 + Math.random() * 6) * dpr, c: cols[Math.floor(Math.random() * cols.length)], vy: (2 + Math.random() * 3.5) * dpr, vx: (Math.random() - 0.5) * 2 * dpr, a: Math.random() * 6, va: (Math.random() - 0.5) * 0.3 }));
-  const t0 = performance.now();
+  const t0 = performance.now(), run = confetti.run = (confetti.run || 0) + 1;
   (function frame(t) {
     ctx.clearRect(0, 0, cv.width, cv.height);
+    if (run !== confetti.run) return;
     for (const p of ps) { p.x += p.vx; p.y += p.vy; p.a += p.va; ctx.save(); ctx.translate(p.x, p.y); ctx.rotate(p.a); ctx.fillStyle = p.c; ctx.fillRect(-p.r, -p.r / 2, p.r * 2, p.r); ctx.restore(); }
     if (t - t0 < ms) requestAnimationFrame(frame); else { ctx.clearRect(0, 0, cv.width, cv.height); cv.style.display = 'none'; }
   })(t0);
 }
+confetti.stop = () => { confetti.run = (confetti.run || 0) + 1; const cv = $('#confetti'); cv.getContext('2d').clearRect(0, 0, cv.width, cv.height); cv.style.display = 'none'; };
 
 // ───────────────────────── Nätverk ─────────────────────────
 function peerOptions() {
@@ -624,16 +631,21 @@ const Host = {
 // ───────────── Värdens skärmar ─────────────
 function setScreen(html, cls = '') { Object.assign(Sp.dock().style, { visibility: 'hidden', left: '-10000px' }); const a = appEl(); a.className = cls; a.innerHTML = html; window.scrollTo(0, 0); }
 
+const APK_URL = '../app/QuizChampions.apk';
 function renderHome() {
   Host.phase === 'idle' || Host.close();
+  Solo.quit();
   const nQ = BANK.length, nS = songPool().length;
   setScreen(`
   <div class="home">
-    <h1 class="brand"><img class="brand-logo" src="img/logo.webp" alt="${APP_NAME}" width="984" height="980"></h1>
+    <h1 class="brand"><img class="brand-logo" src="img/logo.webp" alt="${APP_NAME}" width="900" height="900"></h1>
     <p class="tagline">Quiz för hela familjen – alla spelar med sin mobil.</p>
     <div class="home-grid">
       <button class="home-card host" id="goHost">
         <span class="hc-ico">🖥️</span><b>Starta ett quiz</b><small>Den här skärmen blir spelplanen – visa den på TV:n eller datorn.</small>
+      </button>
+      <button class="home-card host solo-card" id="goSolo">
+        <span class="hc-ico">🎯</span><b>Spela själv</b><small>Enspelarläge – frågor och svar på den här skärmen. Slå ditt rekord!</small>
       </button>
       <form class="home-card joincard" id="joinForm">
         <span class="hc-ico">📱</span><b>Gå med i ett spel</b>
@@ -643,15 +655,20 @@ function renderHome() {
     </div>
     <button class="btn ghost" id="goEdit">✏️ Mina quiz &amp; låtar</button>
     <p class="foot">${nQ} frågor · ${Object.keys(CATS).length - 1} kategorier · ${nS} Spotify-låtar</p>
+    ${!IN_APP && /Android/i.test(navigator.userAgent) ? `<a class="btn ghost small" href="${APK_URL}" download>📲 Ladda ner Android-appen</a>` : ''}
   </div>`, 'scr-home');
-  $('#goHost').onclick = () => renderSetup();
+  $('#goHost').onclick = () => renderSetup('gen', 'host');
+  $('#goSolo').onclick = () => renderSetup('gen', 'solo');
   $('#goEdit').onclick = () => Editor.list();
   $('#joinForm').onsubmit = e => { e.preventDefault(); const pin = $('#pinIn').value.replace(/\D/g, ''); if (pin.length !== 6) { toast('PIN-koden har 6 siffror'); return; } renderJoin(pin); };
 }
 
 let setupState = store.get('setup', { age: 'f', cats: Object.keys(CATS).filter(c => c !== 'spotify').concat('spotify'), count: 10, diff: 'mix', time: 'auto' });
-function renderSetup(tab = 'gen') {
-  const s = setupState; const keep = Host.peer && Host.peer.open;
+let setupMode = 'host';
+function renderSetup(tab = 'gen', mode = setupMode) {
+  setupMode = mode; const solo = mode === 'solo';
+  const s = setupState; const keep = !solo && Host.peer && Host.peer.open;
+  const go = (quiz, extra = {}) => solo ? Solo.start(quiz, extra) : Host.open(quiz, extra);
   const chip = (on, attrs, label) => `<button class="chip ${on ? 'on' : ''}" ${attrs}>${label}</button>`;
   const tabs = `<div class="tabs">${[['gen', '✨ Skapa quiz'], ['pre', '📦 Färdiga quiz'], ['mine', '✏️ Mina quiz']].map(([k, l]) => `<button class="tab ${tab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div>`;
   let body = '';
@@ -666,7 +683,7 @@ function renderSetup(tab = 'gen') {
       <section class="opt"><h3>Svårighet</h3><div class="chips">${[['easy', 'Lätt'], ['mix', 'Blandat'], ['hard', 'Svår']].map(([k, l]) => chip(s.diff === k, `data-diff="${k}"`, l)).join('')}</div></section>
       <section class="opt"><h3>Tid per fråga</h3><div class="chips">${[['auto', 'Auto'], [10, '10 s'], [20, '20 s'], [30, '30 s'], [60, '60 s']].map(([k, l]) => chip(String(s.time) === String(k), `data-time="${k}"`, l)).join('')}</div></section>
     </div>
-    <div class="setup-go"><span class="match">${n} frågor matchar${s.cats.includes('spotify') ? ' (inkl. musikfrågor)' : ''}${n && n < s.count ? ` – quizet blir ${n} frågor` : ''}</span><button class="btn primary big" id="createBtn" ${n ? '' : 'disabled'}>${keep ? 'Byt till det här quizet ▶' : 'Skapa spelrum ▶'}</button></div>`;
+    <div class="setup-go"><span class="match">${n} frågor matchar${s.cats.includes('spotify') ? ' (inkl. musikfrågor)' : ''}${n && n < s.count ? ` – quizet blir ${n} frågor` : ''}</span><button class="btn primary big" id="createBtn" ${n ? '' : 'disabled'}>${solo ? 'Starta ▶' : keep ? 'Byt till det här quizet ▶' : 'Skapa spelrum ▶'}</button></div>`;
   } else if (tab === 'pre') {
     body = `<div class="presets">${PRESETS.map(p => `<button class="preset" data-pre="${p.id}"><span class="pe">${p.e}</span><b>${esc(p.n)}</b><small>${esc(p.d)}</small><span class="pmeta">${p.o.count} frågor</span></button>`).join('')}</div>`;
   } else {
@@ -675,10 +692,10 @@ function renderSetup(tab = 'gen') {
       <p class="center"><button class="btn ghost" id="toEditor">✏️ Redigera mina quiz</button></p>`
       : `<div class="empty"><p>Du har inga egna quiz ännu.</p><button class="btn primary" id="toEditor">✏️ Skapa ett eget quiz</button></div>`;
   }
-  setScreen(`<div class="setup"><header class="bar"><button class="btn icon ghost" id="back" aria-label="Tillbaka">←</button><h2>${keep ? 'Välj nytt quiz' : 'Starta ett quiz'}</h2><span></span></header>${tabs}<div class="setup-body">${body}</div></div>`, 'scr-setup');
+  setScreen(`<div class="setup"><header class="bar"><button class="btn icon ghost" id="back" aria-label="Tillbaka">←</button><h2>${solo ? '🎯 Spela själv' : keep ? 'Välj nytt quiz' : 'Starta ett quiz'}</h2><span></span></header>${tabs}<div class="setup-body">${body}</div></div>`, 'scr-setup');
   $('#back').onclick = () => keep ? Host.toLobby(true) : renderHome();
-  $$('[data-tab]').forEach(b => b.onclick = () => renderSetup(b.dataset.tab));
-  const save = () => { store.set('setup', setupState); renderSetup('gen'); };
+  $$('[data-tab]').forEach(b => b.onclick = () => renderSetup(b.dataset.tab, mode));
+  const save = () => { store.set('setup', setupState); renderSetup('gen', mode); };
   $$('[data-age]').forEach(b => b.onclick = () => { s.age = b.dataset.age; save(); });
   $$('[data-cat]').forEach(b => b.onclick = () => { const c = b.dataset.cat; s.cats = s.cats.includes(c) ? s.cats.filter(x => x !== c) : [...s.cats, c]; save(); });
   $$('[data-count]').forEach(b => b.onclick = () => { s.count = +b.dataset.count; save(); });
@@ -686,9 +703,9 @@ function renderSetup(tab = 'gen') {
   $$('[data-time]').forEach(b => b.onclick = () => { s.time = b.dataset.time === 'auto' ? 'auto' : +b.dataset.time; save(); });
   $('#allCats') && ($('#allCats').onclick = () => { s.cats = Object.keys(CATS); save(); });
   $('#noCats') && ($('#noCats').onclick = () => { s.cats = []; save(); });
-  $('#createBtn') && ($('#createBtn').onclick = () => { if (!s.cats.length) { toast('Välj minst en kategori'); return; } Host.open(buildQuiz({ ...s })); });
-  $$('[data-pre]').forEach(b => b.onclick = () => { const p = PRESETS.find(x => x.id === b.dataset.pre); Host.open(buildQuiz({ ...p.o }), p.tts ? { tts: true } : {}); });
-  $$('[data-mine]').forEach(b => b.onclick = () => { const q = store.get('myquizzes', []).find(x => x.id === b.dataset.mine); if (!q || !q.qs.length) { toast('Quizet är tomt'); return; } Host.open(customToRuntime(q)); });
+  $('#createBtn') && ($('#createBtn').onclick = () => { if (!s.cats.length) { toast('Välj minst en kategori'); return; } go(buildQuiz({ ...s })); });
+  $$('[data-pre]').forEach(b => b.onclick = () => { const p = PRESETS.find(x => x.id === b.dataset.pre); go(buildQuiz({ ...p.o }), p.tts ? { tts: true } : {}); });
+  $$('[data-mine]').forEach(b => b.onclick = () => { const q = store.get('myquizzes', []).find(x => x.id === b.dataset.mine); if (!q || !q.qs.length) { toast('Quizet är tomt'); return; } go(customToRuntime(q)); });
   $('#toEditor') && ($('#toEditor').onclick = () => Editor.list());
 }
 
@@ -712,9 +729,10 @@ function renderLobby() {
       <button class="btn ghost small" id="change">Byt quiz</button></header>
     <div class="lob-main">
       <section class="join-card">
-        <p class="join-how">Gå till <b>${esc(shortUrl())}</b><br>och skriv in PIN-koden – eller skanna QR-koden</p>
+        <p class="join-how">Skanna QR-koden med mobilkameran<br>– eller öppna <b>Quiz Champions</b> och skriv PIN-koden</p>
         <div class="pin" aria-label="PIN-kod">${pinTxt}</div>
         <div class="qr">${qrSvg(url)}</div>
+        <button class="link small show-url" id="showUrl">Visa webbadressen</button>
         ${local ? '<p class="warn">⚠️ Sidan är öppnad som fil. Lägg upp den på en webbadress (t.ex. GitHub Pages) så att mobilerna kan öppna den.</p>' : ''}
       </section>
       <section class="lob-players">
@@ -738,6 +756,7 @@ function renderLobby() {
     </div>
   </div>`, 'scr-lobby');
   updateLobbyPlayers(); updateDjStatus();
+  $('#showUrl').onclick = e => { e.currentTarget.outerHTML = `<p class="join-url">${esc(shortUrl())}</p>`; };
   $('#leave').onclick = async () => { if (!H.players.size || await confirmDlg('Avsluta spelrummet? Alla spelare kopplas bort.', 'Avsluta')) { H.close(); renderHome(); } };
   $('#change').onclick = () => { Bgm.stop(); renderSetup('gen'); };
   $('#startBtn').onclick = () => H.start();
@@ -878,6 +897,142 @@ function renderPodium() {
   $('#home').onclick = () => { H.close(); renderHome(); };
 }
 
+
+// ═════════════════════════ ENSPELARLÄGE ═════════════════════════
+const Solo = {
+  quiz: null, qi: -1, phase: 'idle', score: 0, streak: 0, bestStreak: 0, right: 0, log: [], tts: false,
+  t: null, tickT: null, cdT: null, qStart: 0, deadline: 0, lastSecond: null,
+  start(quiz, extra = {}) {
+    this.stop(); confetti.stop(); if (Host.phase !== 'idle') Host.close();
+    Object.assign(this, { quiz, qi: -1, score: 0, streak: 0, bestStreak: 0, right: 0, log: [], tts: !!extra.tts || quiz.age === '0' });
+    Sound.ensure(); keepAwake();
+    const m = quiz.questions.find(q => q.type === 'music' && q.track); if (m) Sp.preload(m.track);
+    this.next();
+  },
+  stop() { clearTimeout(this.t); clearInterval(this.tickT); clearInterval(this.cdT); this.t = this.tickT = this.cdT = null; },
+  quit() { if (this.phase === 'idle') return; this.stop(); this.phase = 'idle'; Sp.stop(); Speech.stop(); Bgm.stop(); },
+  next() {
+    this.stop(); Speech.stop(); this.qi++;
+    if (this.qi >= this.quiz.questions.length) return this.finish();
+    const q = this.quiz.questions[this.qi]; this.phase = 'ready';
+    let ms = q.type === 'music' ? 3500 : clamp(1200 + q.text.length * 30, 2000, 5000);
+    if (this.tts) ms = Math.max(ms, clamp(q.text.length * 75, 2500, 9500));
+    renderSoloReady(q, ms);
+    if (q.type === 'music') { Bgm.stop(); if (q.track) Sp.play(q.track); else Sp.stop(); } else { Sp.stop(); Bgm.start('lobby'); }
+    if (this.tts) Speech.speak(q.text);
+    this.t = setTimeout(() => this.show(), ms);
+  },
+  show() {
+    if (this.phase !== 'ready') return; this.stop();
+    const q = this.quiz.questions[this.qi];
+    this.phase = 'question'; this.qStart = performance.now(); this.deadline = Date.now() + q.time * 1000; this.lastSecond = null;
+    renderSoloQuestion(q);
+    if (q.type !== 'music') Bgm.start('q');
+    if (this.tts && q.type !== 'music') { const col = ['Röd', 'Blå', 'Gul', 'Grön']; Speech.speak(q.type === 'tf' ? 'Sant eller falskt?' : q.opts.map((o, i) => `${col[i]}: ${o}.`).join(' ')); }
+    this.tickT = setInterval(() => this.tick(), 100); this.tick();
+  },
+  tick() {
+    const q = this.quiz.questions[this.qi], left = Math.max(0, this.deadline - Date.now()), sec = Math.ceil(left / 1000);
+    const bar = $('#sBar'); if (bar) bar.style.transform = `scaleX(${(left / (q.time * 1000)).toFixed(4)})`;
+    const num = $('#sSec'); if (num) num.textContent = sec;
+    if (sec !== this.lastSecond) { this.lastSecond = sec; if (sec <= 5 && sec > 0) Sound.tick(); }
+    if (left <= 0) this.answer(null);
+  },
+  answer(c) {
+    if (this.phase !== 'question') return;
+    this.stop(); Bgm.stop(); Speech.stop();
+    const q = this.quiz.questions[this.qi], ms = performance.now() - this.qStart, ok = c === q.correct;
+    let pts = 0;
+    if (ok) {
+      this.streak++; this.right++; this.bestStreak = Math.max(this.bestStreak, this.streak);
+      pts = clamp(Math.round(1000 * (1 - (ms / 1000) / q.time / 2)), 500, 1000) + Math.min(this.streak - 1, 5) * 100;
+    } else this.streak = 0;
+    this.score += pts; this.phase = 'reveal'; this.log.push({ q, c, ok, pts });
+    if (q.type === 'music') Sp.reveal();
+    renderSoloQuestion(q, { c, ok, pts });
+    if (ok) Sound.correct(); else Sound.wrong();
+    try { navigator.vibrate && navigator.vibrate(ok ? [30, 40, 30] : 120); } catch {}
+    const wait = q.type === 'music' ? 6500 : ok ? 2800 : 4200, end = Date.now() + wait;
+    const upd = () => updateCountdown(Math.max(0, Math.ceil((end - Date.now()) / 1000)), wait);
+    upd(); this.cdT = setInterval(upd, 250);
+    this.t = setTimeout(() => { if (this.phase === 'reveal') this.next(); }, wait);
+  },
+  hold() { this.stop(); updateCountdown(null); const h = $('#holdBtn'); if (h) h.remove(); },
+  finish() {
+    this.stop(); Sp.stop(); Speech.stop(); Bgm.stop(); this.phase = 'end';
+    const best = store.get('soloBest', {}), k = this.quiz.title, prev = best[k] || 0, rec = this.score > prev && this.score > 0;
+    if (rec) { best[k] = this.score; store.set('soloBest', best); }
+    renderSoloEnd(prev, rec);
+    const n = this.quiz.questions.length;
+    if (rec || this.right / n >= 0.7) { Sound.fanfare(); setTimeout(() => confetti(3500), 700); }
+  },
+  again() { const g = this.quiz.gen; this.start(g ? buildQuiz({ ...g }) : { ...this.quiz, questions: shuffle(this.quiz.questions) }, { tts: this.tts }); },
+};
+function soloTop(q) {
+  const S = Solo, cat = CATS[q.cat] || { e: '📝', n: 'Eget quiz' };
+  return `<header class="hq-top solo-top"><button class="btn icon ghost" id="soloQuit" aria-label="Avsluta">✕</button>
+    <span class="qnum">${S.qi + 1}<small>/${S.quiz.questions.length}</small></span><span class="catchip">${q.type === 'music' ? '🎧 Musik' : `${cat.e} ${esc(cat.n)}`}</span>
+    <span class="grow"></span><span class="solo-score">⭐ <b>${fmt(S.score)}</b>${S.streak >= 2 ? ` <span class="s-streak">🔥${S.streak}</span>` : ''}</span></header>`;
+}
+function bindSoloQuit() {
+  $('#soloQuit').onclick = async () => {
+    if (await confirmDlg('Avsluta quizet?', 'Avsluta')) { Solo.quit(); renderSetup('gen', 'solo'); }
+  };
+}
+function renderSoloReady(q, ms) {
+  setScreen(`<div class="solo ${q.type === 'music' ? 'is-music' : ''}">${soloTop(q)}
+    <div class="ready-body solo-ready">
+      ${q.type === 'music' ? '<div class="music-badge">🎧 Musikfråga – lyssna!</div>' : ''}
+      <h1 class="qtext">${esc(q.text)}</h1>
+      ${q.type === 'music' ? `<div id="mediaSlot" class="media-slot">${q.track ? '' : '<div class="dj-wait">⚠️ Ingen låt angiven</div>'}</div>` : ''}
+      <div class="ready-bar"><i></i></div><p class="muted small">Tryck för att börja direkt</p>
+    </div></div>`, 'scr-solo');
+  bindSoloQuit();
+  $('.ready-bar i').style.animationDuration = ms + 'ms';
+  $('.solo-ready').onclick = () => Solo.show();
+  if (q.type === 'music') placeDock();
+}
+const longWords = opts => Math.max(...opts.flatMap(o => String(o).split(/[\s–-]+/).map(w => w.length))) >= 13;
+function renderSoloQuestion(q, res) {
+  const S = Solo, reveal = !!res, tf = q.type === 'tf', last = S.qi >= S.quiz.questions.length - 1;
+  const opts = q.opts.map((o, i) => {
+    const st = reveal ? (i === q.correct ? 'right' : i === res.c ? 'picked wrong' : 'wrong') : '';
+    return `<button class="p-opt c${tf ? (i === 0 ? 1 : 0) : i} ${st}" data-c="${i}"><span class="shape">${tf ? TF_ICONS[i] : SHAPES[i]}</span><span class="ptext">${esc(o)}</span>${reveal && i === q.correct ? '<span class="tick">✓</span>' : ''}</button>`;
+  }).join('');
+  const songInfo = reveal && q.type === 'music' && q.track && q.track.t ? `<div class="song-info">🎵 <b>${esc(q.track.t)}</b> – ${esc(q.track.ar)}${q.track.y ? ` (${q.track.y})` : ''}</div>` : '';
+  const banner = !reveal ? '' : res.ok
+    ? `<div class="solo-res ok">✓ Rätt! <b>+${fmt(res.pts)}</b>${S.streak >= 2 ? ` · 🔥 ${S.streak} i rad` : ''}</div>`
+    : `<div class="solo-res bad">${res.c == null ? '⏰ Tiden tog slut' : '✕ Fel svar'}</div>`;
+  setScreen(`<div class="solo ${reveal ? 'revealed' : ''} ${q.type === 'music' ? 'is-music' : ''}">${soloTop(q)}
+    <div class="solo-timer"><div class="p-timer"><i id="sBar" style="transform:scaleX(${reveal ? 0 : 1})"></i></div><span id="sSec">${reveal ? '' : q.time}</span></div>
+    <h1 class="qtext">${esc(q.text)}</h1>
+    ${q.type === 'music' ? `<div id="mediaSlot" class="media-slot"></div>` : ''}${songInfo}${banner}
+    <div class="p-opts solo-opts n${q.opts.length} ${longWords(q.opts) ? 'lw' : ''}">${opts}</div>
+    ${reveal ? `<div class="solo-next"><button class="btn ghost small" id="holdBtn">⏸ Vänta</button><button class="btn primary big" id="nextBtn">${last ? 'Se resultatet' : 'Nästa'}<span class="cd"></span> ${last ? '🏆' : '▶'}</button></div>` : ''}
+  </div>`, 'scr-solo');
+  bindSoloQuit();
+  if (reveal) { $('#nextBtn').onclick = () => Solo.next(); $('#holdBtn').onclick = () => Solo.hold(); }
+  else $$('.solo-opts [data-c]').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); Solo.answer(+b.dataset.c); }, { once: true }));
+  if (q.type === 'music') placeDock();
+}
+function renderSoloEnd(prev, rec) {
+  const S = Solo, n = S.quiz.questions.length, pct = S.right / n;
+  const msg = pct === 1 ? 'Alla rätt – perfekt! 🏆' : pct >= 0.8 ? 'Riktigt bra jobbat!' : pct >= 0.5 ? 'Bra kämpat!' : 'Öva lite till – du klarar det!';
+  const wrong = S.log.filter(r => !r.ok).map(({ q }) => ({ text: q.type === 'music' && q.track && q.track.t ? `🎧 ${q.track.t} – ${q.track.ar}` : q.text, right: q.opts[q.correct] }));
+  setScreen(`<div class="solo-end">
+    <img class="pod-emblem" src="img/emblem.webp" alt="">
+    <h1 class="win-title">${msg}</h1>
+    <p class="muted">${esc(S.quiz.title)}</p>
+    <div class="solo-stats"><div><b>${S.right}/${n}</b><small>rätt</small></div><div><b>${fmt(S.score)}</b><small>poäng</small></div><div><b>🔥 ${S.bestStreak}</b><small>bästa svit</small></div></div>
+    ${rec ? '<p class="solo-rec">🎉 Nytt rekord!</p>' : prev ? `<p class="muted">Ditt rekord: ${fmt(prev)} p</p>` : ''}
+    ${wrong.length ? `<details class="solo-review"><summary>Se rätt svar på dina missar (${wrong.length})</summary><ol>${wrong.map(r => `<li><span>${esc(r.text)}</span><b>${esc(r.right)}</b></li>`).join('')}</ol></details>` : ''}
+    <div class="row center"><button class="btn primary big" id="again">🔁 Spela igen</button><button class="btn ghost" id="other">Välj annat quiz</button><button class="btn ghost" id="home">Startsidan</button></div>
+  </div>`, 'scr-solo');
+  $('#again').onclick = () => Solo.again();
+  $('#other').onclick = () => { Solo.quit(); renderSetup('gen', 'solo'); };
+  $('#home').onclick = () => renderHome();
+}
+
 // ═════════════════════════ SPELARE ═════════════════════════
 const Player = {
   peer: null, conn: null, pin: null, cid: null, name: '', avatar: '', role: 'player', state: 'idle', lastPing: 0, wdT: null, retryT: null, retries: 0,
@@ -977,7 +1132,7 @@ function renderJoin(pin, error = '') {
   setScreen(`
   <div class="join">
     <header class="bar"><button class="btn icon ghost" id="back" aria-label="Tillbaka">←</button><h2>Gå med</h2><span></span></header>
-    <img class="join-emblem" src="img/emblem.webp" alt="" width="240" height="211">
+    <img class="join-emblem" src="img/emblem.webp" alt="" width="240" height="240">
     <form id="jf" class="join-form">
       <label class="lbl">PIN-kod<input id="jPin" inputmode="numeric" maxlength="7" value="${esc(pin || '')}" placeholder="123456" autocomplete="off"></label>
       <label class="lbl">Ditt namn<input id="jName" maxlength="16" value="${esc(me.name || '')}" placeholder="t.ex. Leah" autocomplete="nickname" enterkeyhint="go"></label>
@@ -1020,7 +1175,7 @@ function renderPAnswer(m) {
   setScreen(`<div class="p-screen answer-p">${pTop()}
     ${m.opts ? `<p class="p-qtext small">${esc(m.text)}</p>` : ''}
     <div class="p-timer"><i id="pBar"></i></div>
-    <div class="p-opts n${m.n} ${m.opts ? '' : 'noText'}">${opts}</div></div>`, 'scr-player');
+    <div class="p-opts n${m.n} ${m.opts ? (longWords(m.opts) ? 'lw' : '') : 'noText'}">${opts}</div></div>`, 'scr-player');
   const bar = $('#pBar'); const frac = clamp(m.left / (m.time * 1000), 0, 1);
   bar.style.transform = `scaleX(${frac})`; requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transition = `transform ${m.left}ms linear`; bar.style.transform = 'scaleX(0)'; }));
   $$('[data-c]').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); Player.answer(+b.dataset.c); }, { once: true }));
@@ -1101,7 +1256,7 @@ const Editor = {
     $$('[data-delsong]').forEach(b => b.onclick = async () => { if (await confirmDlg('Ta bort låten?', 'Ta bort')) { const s = store.get('mysongs', []); s.splice(+b.dataset.delsong, 1); store.set('mysongs', s); this.list(); } });
     $('#addSong').onclick = () => this.songForm();
     const payload = () => JSON.stringify({ format: 'quizkalas', version: 1, quizzes: this.all(), songs: store.get('mysongs', []) }, null, 1);
-    $('#exp').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([payload()], { type: 'application/json' })); a.download = 'quiz-champions-mina-quiz.json'; document.body.appendChild(a); a.click(); a.remove(); };
+    $('#exp').onclick = () => { if (IN_APP && AppBridge.saveFile) { toast(AppBridge.saveFile('quiz-champions-mina-quiz.json', payload()) ? 'Sparad i Hämtade filer 📁' : 'Kunde inte spara filen'); return; } const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([payload()], { type: 'application/json' })); a.download = 'quiz-champions-mina-quiz.json'; document.body.appendChild(a); a.click(); a.remove(); };
     $('#copy').onclick = async () => { try { await navigator.clipboard.writeText(payload()); toast('Kopierat! 📋'); } catch { dialog(`<p>Kopiera texten:</p><textarea class="ta" rows="8">${esc(payload())}</textarea>`, [{ label: 'Klar', value: 1, cls: 'primary' }]); } };
     $('#imp').onchange = async e => { const f = e.target.files[0]; if (f) this.importText(await f.text()); };
     $('#paste').onclick = async () => {
@@ -1218,6 +1373,15 @@ function boot() {
   }
   renderHome();
 }
-window.QK = { Host, Player, buildQuiz, Sp }; // för felsökning
+// Androids bakåtknapp: stäng dialog, gå ett steg tillbaka – false = lämna appen
+window.qcBack = () => {
+  const m = $('.modal'); if (m) { const b = m.querySelector('.btn.ghost') || m.querySelector('.btn'); if (b) b.click(); return true; }
+  if (appEl().className === 'scr-home') return false;
+  if (['joined', 'reconnecting', 'connecting'].includes(Player.state)) { confirmDlg('Lämna spelet?', 'Lämna').then(ok => { if (ok) { Player.leave(); clearPinParam(); renderHome(); } }); return true; }
+  const b = ['#soloQuit', '#back', '#leave', '#endGame', '#homeBtn', '#home'].map(x => $(x)).find(Boolean);
+  if (b) b.click(); else renderHome();
+  return true;
+};
+window.QK = { Host, Player, Solo, buildQuiz, Sp }; // för felsökning
 boot();
 })();
