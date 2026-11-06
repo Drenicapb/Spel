@@ -16,3 +16,11 @@ Turbaserat strategispel där du tar över världen: **https://drpatri-ai.github.
 På iPhone/iPad: öppna länken i Safari → Dela → *Lägg till på hemskärmen* så startar det i helskärm med egen ikon och fungerar offline. Spelet sparas i webbläsaren på enheten (tre sparplatser).
 
 Mappen `illyrian/` byggs separat (inte från `Apk-test`) – låt den vara kvar när Bucinca-filerna kopieras hit.
+
+## Quizkalas
+
+Kahoot-likt quiz för hela familjen – storskärmen visar frågorna och alla svarar med mobilen: **https://drpatri-ai.github.io/Spel/quizkalas/**
+
+365 frågor i 13 kategorier och 4 åldersgrupper, musikfrågor via Spotify och egna quiz. Se `quizkalas/LASMIG.md`.
+
+Mappen `quizkalas/` byggs separat (inte från `Apk-test`) – låt den vara kvar när Bucinca-filerna kopieras hit.

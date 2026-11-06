@@ -1,0 +1,39 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
+<meta name="theme-color" content="#24104d">
+<meta name="description" content="Quizkalas – quiz för hela familjen där alla spelar med sin mobil.">
+<title>Quizkalas</title>
+<link rel="icon" href="data:image/svg+xml,<svg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 100 100'><text y='.9em' font-size='90'>🎉</text></svg>">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fredoka:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="style.css">
+</head>
+<body>
+<div id="app"><div class="center-screen"><div class="spinner"></div></div></div>
+
+<div id="spotifyDock" aria-label="Spotify-spelare">
+  <div class="sp-frame">
+    <div id="spEmbed"></div>
+    <div class="sp-mask" aria-hidden="true"><div class="eq"><i></i><i></i><i></i><i></i><i></i></div><span>Lyssna…</span></div>
+  </div>
+  <div class="sp-under">
+    <span class="sp-hint-text">Hör du ingen musik? Tryck på ▶ i spelaren.</span>
+    <span class="sp-fail-text">Spotify-spelaren kunde inte laddas här.</span>
+    <a id="spLink" class="btn spotify small" href="https://open.spotify.com" target="_blank" rel="noopener">Öppna i Spotify</a>
+  </div>
+</div>
+
+<div id="reconn" role="alert"><div class="spinner small"></div><span>Tappade anslutningen – försöker igen…</span><button class="btn small ghost" id="reconnLeave">Lämna</button></div>
+<div id="toast" role="status" aria-live="polite"></div>
+<canvas id="confetti" aria-hidden="true"></canvas>
+
+<script src="vendor/peerjs.min.js"></script>
+<script src="vendor/qrcode.js"></script>
+<script src="bank.js"></script>
+<script src="app.js"></script>
+</body>
+</html>
