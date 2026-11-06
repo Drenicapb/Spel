@@ -5,7 +5,7 @@ Ett Kahoot-likt quiz för hela familjen. En skärm (TV, dator eller surfplatta) 
 ## Lägg upp spelet (en gång)
 Mobilerna måste kunna öppna sidan via en webbadress, så mappen behöver ligga på en webbserver. Enklast är GitHub Pages:
 
-1. Lägg mappen `quizkalas/` i ett GitHub-repo, till exempel `Apk-test`.
+1. Lägg mappen `quizkalas/` i ett GitHub-repo, till exempel `Spel`.
 2. I repot: **Settings → Pages → Deploy from a branch → main / (root)**.
 3. Efter någon minut finns spelet på `https://<användarnamn>.github.io/<repo>/quizkalas/`.
 
@@ -24,7 +24,7 @@ Inställningar i lobbyn:
 Tryck **Spela själv** på startsidan. Välj quiz på samma sätt som ovan – frågorna och svarsknapparna visas på samma skärm, så det räcker med en mobil eller surfplatta. Snabba rätt svar och svitar ger mer poäng, rätt svar visas efter varje fråga och spelet går vidare av sig självt (tryck **⏸ Vänta** för att stanna kvar). Efteråt ser du antal rätt, poäng, bästa svit och rätt svar på det du missade. Ditt rekord sparas per quiz. Musikfrågorna spelas i Spotifys spelare på samma skärm.
 
 ## Android-appen
-Ladda ner **QuizChampions.apk** från https://drpatri-ai.github.io/Spel/app/QuizChampions.apk (eller tryck *Ladda ner Android-appen* längst ner på startsidan i mobilens webbläsare) och installera. Appen är samma spel utan adressfält – webbadressen syns aldrig – och får alltid de senaste frågorna automatiskt. I appen läses frågorna upp på svenska, skärmen hålls tänd och Spotify-länkar öppnas i Spotify-appen.
+Ladda ner **QuizChampions.apk** från https://drenicapb.github.io/Spel/app/QuizChampions.apk (eller tryck *Ladda ner Android-appen* längst ner på startsidan i mobilens webbläsare) och installera. Appen är samma spel utan adressfält – webbadressen syns aldrig – och får alltid de senaste frågorna automatiskt. I appen läses frågorna upp på svenska, skärmen hålls tänd och Spotify-länkar öppnas i Spotify-appen.
 
 ## Webbadressen
 I lobbyn visas bara PIN-koden och QR-koden; adressen syns först om man trycker *Visa webbadressen*. Den som har appen öppnar den och skriver PIN-koden, alla andra skannar QR-koden med kameran.

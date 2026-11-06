@@ -9,7 +9,7 @@
 'use strict';
 const NET_Q = new URLSearchParams(location.search);
 const NET_ONLINE = (() => { const c = NET_Q.get('online'); return c ? netCleanCode(c) : null; })();
-const NET_WEB = 'https://drpatri-ai.github.io/Spel/';
+const NET_WEB = 'https://drenicapb.github.io/Spel/';
 const NET_PAGE = (location.pathname.split('/').pop() || 'index.html');
 const NET_WORDS = ['KATT', 'HUND', 'HAST', 'GRIS', 'KANIN', 'UGGLA', 'RAV', 'BJORN', 'LEJON', 'TIGER', 'ZEBRA', 'PANDA', 'FISK', 'HAJ', 'APA', 'MUS', 'ALG', 'VARG', 'ORM', 'GROD', 'ANKA', 'KO', 'GET', 'FAR', 'SNIGEL', 'DRAKE', 'ROBOT', 'RAKET', 'PIRAT', 'TROLL'];
 // öppna förmedlare – provas i tur och ordning

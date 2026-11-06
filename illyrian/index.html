@@ -4931,7 +4931,7 @@ window.NET = (function () {
   const newCode = () => Array.from({ length: 6 }, () => CODEA[Math.floor(Math.random() * CODEA.length)]).join('');
   const normCode = s => (s || '').toUpperCase().replace(/[^A-Z0-9]/g, '');
   const pName = p => esc((p && p.name) || (p ? CTR[p.c].n : ''));
-  const shareText = code => `Spela Illyrian Domination med mig! Välj 🌐 Nätverksspel → Gå med och skriv koden ${code}. Spelet finns på https://drpatri-ai.github.io/Spel/illyrian/`;
+  const shareText = code => `Spela Illyrian Domination med mig! Välj 🌐 Nätverksspel → Gå med och skriv koden ${code}. Spelet finns på https://drenicapb.github.io/Spel/illyrian/`;
   function shareCode(code) {
     const t = shareText(code);
     if (navigator.share) { navigator.share({ text: t }).catch(() => { }); return; }
