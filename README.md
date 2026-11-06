@@ -17,7 +17,7 @@ På iPhone/iPad: öppna länken i Safari → Dela → *Lägg till på hemskärme
 
 Mappen `illyrian/` byggs separat (inte från `Apk-test`) – låt den vara kvar när Bucinca-filerna kopieras hit.
 
-## Quizkalas
+## Quiz Champions
 
 Kahoot-likt quiz för hela familjen – storskärmen visar frågorna och alla svarar med mobilen: **https://drpatri-ai.github.io/Spel/quizkalas/**
 

@@ -1,10 +1,13 @@
-# 🎉 Quizkalas
+# 🏆 Quiz Champions
 
 Ett Kahoot-likt quiz för hela familjen. En skärm (TV, dator eller surfplatta) är spelplanen. Alla andra går med från mobilen med en PIN-kod eller QR-kod, direkt i webbläsaren och utan att installera något.
 
-## Adress
-Spelet ligger på **https://drpatri-ai.github.io/Spel/quizkalas/** (GitHub Pages från repot `drpatri-ai/Spel`).
-Vill du lägga det någon annanstans fungerar vilken webbserver som helst – mappen är helt fristående.
+## Lägg upp spelet (en gång)
+Mobilerna måste kunna öppna sidan via en webbadress, så mappen behöver ligga på en webbserver. Enklast är GitHub Pages:
+
+1. Lägg mappen `quizkalas/` i ett GitHub-repo, till exempel `Apk-test`.
+2. I repot: **Settings → Pages → Deploy from a branch → main / (root)**.
+3. Efter någon minut finns spelet på `https://<användarnamn>.github.io/<repo>/quizkalas/`.
 
 ## Spela
 1. Öppna adressen på den stora skärmen och tryck **Starta ett quiz**.
@@ -15,7 +18,7 @@ Vill du lägga det någon annanstans fungerar vilken webbserver som helst – ma
 Inställningar i lobbyn:
 - **Visa svarstext på mobilerna**: av = bara färger och former på mobilen, som i Kahoot.
 - **Läs upp frågorna**: för barn som inte läser ännu. Svaren läses upp med färg ("Röd: Banan").
-- **Gå vidare automatiskt**: spelet bläddrar själv mellan frågorna.
+- **Auto: gå vidare när alla har svarat** (på som standard): när alla har svarat – eller tiden är slut – visas rätt svar, sedan topplistan och nästa fråga, var och en i 5 sekunder. Knappen **⏩ Auto på / ⏸ Auto av** uppe till höger pausar under spelet, och du kan alltid trycka på knappen för att gå vidare direkt.
 
 ## Musikfrågor (Spotify)
 Det finns två sätt att spela musiken:
@@ -33,5 +36,7 @@ Det finns två sätt att spela musiken:
 - Spelet behöver internet. Mobilerna hittar storskärmen via PeerJS gratisserver och pratar sedan direkt med den (WebRTC). Det fungerar både på samma wifi och över mobilnätet.
 - Stäng inte fliken på storskärmen under spelets gång. Om en mobil tappar anslutningen eller laddar om sidan kommer den tillbaka automatiskt med sina poäng.
 - Spelaren som skapar quizet behöver inget konto någonstans.
+
+Loggan och app-ikonen finns i `img/`. På mobilen kan sidan läggas till på hemskärmen (Dela → *Lägg till på hemskärmen*) och får då ikonen.
 
 Innehåll: 365 frågor i 13 kategorier och 4 åldersgrupper, plus 23 Spotify-låtar.

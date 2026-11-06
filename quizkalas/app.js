@@ -1,10 +1,10 @@
-/* Quizkalas – ett Kahoot-likt quiz där alla spelar med mobilen.
+/* Quiz Champions – ett Kahoot-likt quiz där alla spelar med mobilen.
  * Värdskärmen (TV/dator/surfplatta) skapar ett rum med PIN-kod. Mobilerna ansluter via
  * WebRTC (PeerJS) – inga konton, ingen installation. */
 'use strict';
 (() => {
 // ───────────────────────── Grund ─────────────────────────
-const APP_NAME = 'Quizkalas';
+const APP_NAME = 'Quiz Champions';
 const PEER_PREFIX = 'quizkalas-v1-';
 const CATS = window.QK_CATS, BANK = window.QK_BANK, SONGS = window.QK_SONGS;
 const AGES = {
@@ -335,8 +335,24 @@ const Host = {
   peer: null, pin: null, quiz: null, players: new Map(), djs: new Set(), phase: 'idle', qi: -1,
   qStart: 0, deadline: 0, answers: new Map(), tickT: null, phaseT: null, hbT: null, settings: null, lastSecond: null,
 
-  defaults() { return Object.assign({ showText: true, tts: false, auto: false, music: 'screen' }, store.get('hostSettings', {})); },
-  saveSettings() { store.set('hostSettings', { showText: this.settings.showText, auto: this.settings.auto, music: this.settings.music }); },
+  defaults() { return Object.assign({ showText: true, tts: false, auto: true, music: 'screen' }, store.get('hostSettings2', {})); },
+  saveSettings() { store.set('hostSettings2', { showText: this.settings.showText, auto: this.settings.auto, music: this.settings.music }); },
+  // Auto-läge: när alla har svarat (eller tiden är slut) visas svaret, sedan topplistan och nästa fråga – utan att någon trycker
+  autoMs() { const q = this.quiz && this.quiz.questions[this.qi]; return this.phase === 'reveal' ? (q && q.type === 'music' ? 7000 : 5000) : 5000; },
+  scheduleAuto() {
+    clearTimeout(this.phaseT); clearInterval(this.cdT); this.phaseT = this.cdT = null;
+    if (!this.settings.auto || !['reveal', 'board'].includes(this.phase)) { updateCountdown(null); return; }
+    const ms = this.autoMs(), end = Date.now() + ms, phase = this.phase;
+    const upd = () => updateCountdown(Math.max(0, Math.ceil((end - Date.now()) / 1000)), ms);
+    upd(); this.cdT = setInterval(upd, 250);
+    this.phaseT = setTimeout(() => { clearInterval(this.cdT); if (this.phase !== phase) return; phase === 'reveal' ? this.afterReveal() : this.next(); }, ms);
+  },
+  toggleAuto() {
+    this.settings.auto = !this.settings.auto; this.saveSettings();
+    $$('.auto-tog').forEach(b => { b.classList.toggle('on', this.settings.auto); b.innerHTML = autoLabel(); });
+    if (['reveal', 'board'].includes(this.phase)) this.scheduleAuto();
+    toast(this.settings.auto ? '⏩ Auto på – spelet går vidare när alla har svarat' : '⏸ Auto av – tryck själv för att gå vidare');
+  },
   hasMusic() { return this.quiz && this.quiz.questions.some(q => q.type === 'music'); },
   preloadMusic() { if (this.settings.music !== 'screen') return; const q = this.quiz.questions.find(x => x.type === 'music' && x.track); if (q) Sp.preload(q.track); },
 
@@ -369,7 +385,7 @@ const Host = {
     setTimeout(() => { try { this.peer && this.peer.destroy(); } catch {} this.peer = null; }, 200);
     this.players.clear(); this.djs.clear(); this.phase = 'idle'; this.quiz = null;
   },
-  stopTimers() { clearInterval(this.tickT); clearTimeout(this.phaseT); this.tickT = this.phaseT = null; },
+  stopTimers() { clearInterval(this.tickT); clearTimeout(this.phaseT); clearInterval(this.cdT); this.tickT = this.phaseT = this.cdT = null; },
   toLobby(keepPlayers) {
     this.stopTimers(); Sp.stop(); Speech.stop();
     this.phase = 'lobby'; this.qi = -1;
@@ -563,13 +579,13 @@ const Host = {
     this.sendDj();
     renderHostQuestion(q, dist);
     Sound.timeUp(); setTimeout(() => Sound.correct(), 350);
-    if (this.settings.auto) this.phaseT = setTimeout(() => this.afterReveal(), 6000);
+    this.scheduleAuto();
   },
   afterReveal() {
     this.stopTimers();
     if (this.qi >= this.quiz.questions.length - 1) return this.finish();
     this.phase = 'board'; Sp.stop(); renderHostBoard(); Bgm.start('lobby'); this.sendDj();
-    if (this.settings.auto) this.phaseT = setTimeout(() => this.next(), 6000);
+    this.scheduleAuto();
   },
   finish() {
     this.stopTimers(); Sp.stop(); Speech.stop(); Bgm.stop();
@@ -589,13 +605,13 @@ function renderHome() {
   const nQ = BANK.length, nS = songPool().length;
   setScreen(`
   <div class="home">
-    <div class="logo"><span class="logo-burst">🎉</span><h1>${APP_NAME}</h1></div>
+    <h1 class="brand"><img class="brand-logo" src="img/logo.webp" alt="${APP_NAME}" width="984" height="980"></h1>
     <p class="tagline">Quiz för hela familjen – alla spelar med sin mobil.</p>
     <div class="home-grid">
       <button class="home-card host" id="goHost">
         <span class="hc-ico">🖥️</span><b>Starta ett quiz</b><small>Den här skärmen blir spelplanen – visa den på TV:n eller datorn.</small>
       </button>
-      <form class="home-card join" id="joinForm">
+      <form class="home-card joincard" id="joinForm">
         <span class="hc-ico">📱</span><b>Gå med i ett spel</b>
         <input id="pinIn" inputmode="numeric" autocomplete="off" maxlength="7" placeholder="PIN-kod" aria-label="PIN-kod">
         <button class="btn primary" type="submit">Gå med</button>
@@ -668,7 +684,7 @@ function renderLobby() {
   setScreen(`
   <div class="lobby">
     <header class="bar"><button class="btn icon ghost" id="leave" aria-label="Avsluta">✕</button>
-      <div class="lob-title"><b>${esc(H.quiz.title)}</b><small>${H.quiz.questions.length} frågor</small></div>
+      <div class="lob-title"><img class="lob-emblem" src="img/emblem.webp" alt=""><div><b>${esc(H.quiz.title)}</b><small>${H.quiz.questions.length} frågor</small></div></div>
       <button class="btn ghost small" id="change">Byt quiz</button></header>
     <div class="lob-main">
       <section class="join-card">
@@ -688,7 +704,7 @@ function renderLobby() {
       <div class="settings">
         ${tog('showText', 'Visa svarstext på mobilerna', s.showText)}
         ${tog('tts', 'Läs upp frågorna', s.tts)}
-        ${tog('auto', 'Gå vidare automatiskt', s.auto)}
+        ${tog('auto', 'Auto: gå vidare när alla har svarat', s.auto)}
         ${tog('sound', 'Ljud', Sound.on)}
         ${music ? `<div class="music-mode"><span>🎧 Musiken spelas:</span>
           <button class="chip ${s.music === 'screen' ? 'on' : ''}" data-music="screen">På den här skärmen</button>
@@ -728,9 +744,20 @@ function updateDjStatus() { const el = $('#djStatus'); if (el) el.innerHTML = Ho
 function hostHeader(q) {
   const H = Host, cat = CATS[q.cat] || { e: '📝', n: 'Eget quiz' };
   const age = H.quiz.age === 'f' && q.band != null && q.type !== 'music' ? `<span class="age-badge">${AGES[String(q.band)].e} ${AGES[String(q.band)].fr}</span>` : '';
-  return `<header class="hq-top"><span class="qnum">${H.qi + 1}<small>/${H.quiz.questions.length}</small></span><span class="catchip">${cat.e} ${esc(cat.n)}</span>${age}<span class="grow"></span><button class="btn ghost small" id="endGame">Avsluta</button></header>`;
+  return `<header class="hq-top"><span class="qnum">${H.qi + 1}<small>/${H.quiz.questions.length}</small></span><span class="catchip">${cat.e} ${esc(cat.n)}</span>${age}<span class="grow"></span>${autoBtn()}<button class="btn ghost small" id="endGame">Avsluta</button></header>`;
 }
-function bindEndGame() { const b = $('#endGame'); if (b) b.onclick = async () => { if (await confirmDlg('Avsluta quizet nu och visa resultatet?', 'Visa resultat')) Host.finish(); }; }
+const autoLabel = () => Host.settings && Host.settings.auto ? '⏩ Auto på' : '⏸ Auto av';
+const autoBtn = () => `<button class="btn ghost small auto-tog ${Host.settings.auto ? 'on' : ''}" title="Gå vidare automatiskt när alla har svarat">${autoLabel()}</button>`;
+function bindEndGame() {
+  const b = $('#endGame'); if (b) b.onclick = async () => { if (await confirmDlg('Avsluta quizet nu och visa resultatet?', 'Visa resultat')) Host.finish(); };
+  $$('.auto-tog').forEach(t => t.onclick = () => Host.toggleAuto());
+}
+function updateCountdown(sec, ms) {
+  const b = $('#nextBtn'); if (!b) return; const cd = b.querySelector('.cd');
+  if (sec == null) { b.classList.remove('auto-cd'); if (cd) cd.textContent = ''; return; }
+  if (!b.classList.contains('auto-cd')) { b.style.setProperty('--cd', ms + 'ms'); b.classList.add('auto-cd'); }
+  if (cd) cd.textContent = sec > 0 ? ` om ${sec} s` : '';
+}
 
 function renderHostReady(q, ms) {
   const H = Host;
@@ -776,7 +803,7 @@ function renderHostQuestion(q, dist) {
       <div class="ans-count"><b id="ansNum">${answered}</b><small id="ansOf">av ${total} svar</small></div>
     </div>
     ${optionTiles(q, dist)}
-    ${reveal ? `<div class="hq-next"><button class="btn primary big" id="nextBtn">${last ? 'Visa resultatet 🏆' : 'Topplistan ▶'}</button></div>` : `<div class="hq-next"><button class="btn ghost small" id="skipBtn">Hoppa över tiden ⏭</button></div>`}
+    ${reveal ? `<div class="hq-next"><button class="btn primary big" id="nextBtn">${last ? 'Resultatet' : 'Topplistan'}<span class="cd"></span> ${last ? '🏆' : '▶'}</button></div>` : `<div class="hq-next"><button class="btn ghost small" id="skipBtn">Hoppa över tiden ⏭</button></div>`}
   </div>`, 'scr-host');
   bindEndGame();
   if (reveal) $('#nextBtn').onclick = () => H.afterReveal();
@@ -792,15 +819,16 @@ function renderHostBoard() {
   const H = Host, ranked = H.ranked(), top = ranked.slice(0, 5), max = Math.max(1, ...top.map(r => r.p.score));
   setScreen(`
   <div class="board">
-    <header class="bar"><span></span><h2>🏆 Topplistan</h2><span class="muted">Fråga ${H.qi + 1} av ${H.quiz.questions.length}</span></header>
+    <header class="bar"><span class="muted">Fråga ${H.qi + 1} av ${H.quiz.questions.length}</span><h2>🏆 Topplistan</h2><span class="row">${autoBtn()}<button class="btn ghost small" id="endGame">Avsluta</button></span></header>
     <ol class="ranks">${top.map(({ p, rank }, i) => `
       <li style="--d:${i * 90}ms"><span class="rk">${rank}</span><span class="av">${esc(p.avatar)}</span>
         <span class="nm">${esc(p.name)}${p.streak >= 2 ? ` <span class="streak">🔥${p.streak}</span>` : ''}</span>
         <span class="barw"><i style="--w:${(p.score / max * 100).toFixed(1)}%"></i></span>
         <span class="sc">${fmt(p.score)}${p.lastPts ? `<small>+${fmt(p.lastPts)}</small>` : ''}</span></li>`).join('')}</ol>
     ${ranked.length > 5 ? `<p class="muted center">…och ${ranked.length - 5} till</p>` : ''}
-    <div class="hq-next"><button class="btn primary big" id="nextBtn">Nästa fråga ▶</button></div>
+    <div class="hq-next"><button class="btn primary big" id="nextBtn">Nästa fråga<span class="cd"></span> ▶</button></div>
   </div>`, 'scr-host');
+  bindEndGame();
   $('#nextBtn').onclick = () => H.next();
 }
 function renderPodium() {
@@ -808,7 +836,8 @@ function renderPodium() {
   const col = (r, cls, medal) => r ? `<div class="pod ${cls}"><div class="pav">${esc(r.p.avatar)}</div><div class="pname">${esc(r.p.name)}</div><div class="pscore">${fmt(r.p.score)} p</div><div class="pblock"><span>${medal}</span></div></div>` : `<div class="pod ${cls} empty"></div>`;
   setScreen(`
   <div class="podium-screen">
-    <h1 class="win-title">${a ? `🎉 ${esc(a.p.name)} vinner!` : 'Slut!'}</h1>
+    <img class="pod-emblem" src="img/emblem.webp" alt="">
+    <h1 class="win-title">${a ? `${esc(a.p.name)} vinner!` : 'Slut!'}</h1>
     <div class="podium">${col(b, 'p2', '🥈')}${col(a, 'p1', '🥇')}${col(c, 'p3', '🥉')}</div>
     ${ranked.length > 3 ? `<ol class="rest" start="4">${ranked.slice(3).map(r => `<li><span>${esc(r.p.avatar)} ${esc(r.p.name)}</span><b>${fmt(r.p.score)}</b></li>`).join('')}</ol>` : ''}
     <div class="row center">
@@ -924,6 +953,7 @@ function renderJoin(pin, error = '') {
   setScreen(`
   <div class="join">
     <header class="bar"><button class="btn icon ghost" id="back" aria-label="Tillbaka">←</button><h2>Gå med</h2><span></span></header>
+    <img class="join-emblem" src="img/emblem.webp" alt="" width="240" height="211">
     <form id="jf" class="join-form">
       <label class="lbl">PIN-kod<input id="jPin" inputmode="numeric" maxlength="7" value="${esc(pin || '')}" placeholder="123456" autocomplete="off"></label>
       <label class="lbl">Ditt namn<input id="jName" maxlength="16" value="${esc(me.name || '')}" placeholder="t.ex. Leah" autocomplete="nickname" enterkeyhint="go"></label>
@@ -1047,7 +1077,7 @@ const Editor = {
     $$('[data-delsong]').forEach(b => b.onclick = async () => { if (await confirmDlg('Ta bort låten?', 'Ta bort')) { const s = store.get('mysongs', []); s.splice(+b.dataset.delsong, 1); store.set('mysongs', s); this.list(); } });
     $('#addSong').onclick = () => this.songForm();
     const payload = () => JSON.stringify({ format: 'quizkalas', version: 1, quizzes: this.all(), songs: store.get('mysongs', []) }, null, 1);
-    $('#exp').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([payload()], { type: 'application/json' })); a.download = 'quizkalas-mina-quiz.json'; document.body.appendChild(a); a.click(); a.remove(); };
+    $('#exp').onclick = () => { const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([payload()], { type: 'application/json' })); a.download = 'quiz-champions-mina-quiz.json'; document.body.appendChild(a); a.click(); a.remove(); };
     $('#copy').onclick = async () => { try { await navigator.clipboard.writeText(payload()); toast('Kopierat! 📋'); } catch { dialog(`<p>Kopiera texten:</p><textarea class="ta" rows="8">${esc(payload())}</textarea>`, [{ label: 'Klar', value: 1, cls: 'primary' }]); } };
     $('#imp').onchange = async e => { const f = e.target.files[0]; if (f) this.importText(await f.text()); };
     $('#paste').onclick = async () => {
@@ -1063,7 +1093,7 @@ const Editor = {
       const songs = store.get('mysongs', []), sid = new Set(songs.map(s => s.id));
       for (const s of d.songs || []) if (s && spotifyId(s.id) && !sid.has(s.id)) { songs.push(s); ns++; }
       this.saveAll(qs); store.set('mysongs', songs); toast(`Importerade ${nq} quiz och ${ns} låtar`); this.list();
-    } catch { toast('Kunde inte läsa filen – är det en Quizkalas-export?'); }
+    } catch { toast('Kunde inte läsa filen – är det en export från Quiz Champions?'); }
   },
   songForm() {
     setScreen(`
