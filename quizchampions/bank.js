@@ -18,10 +18,15 @@ window.QK_CATS = {
   matte:   { n: 'Matte & logik',       e: '🧮' },
   musik:   { n: 'Musikfakta',          e: '🎵' },
   teknik:  { n: 'Teknik & internet',   e: '💻' },
+  karta:   { n: 'Kartan – sätt ut nålen', e: '📍' },
+  ledtrad: { n: 'Gissa med ledtrådar', e: '🕵️' },
+  narmast: { n: 'Närmast rätt svar',   e: '🎯' },
   spotify: { n: 'Musikfrågor (Spotify)', e: '🎧' },
 };
 
 window.QK_BANK = [];
+// En frågas identitet (dubblettkontroll och "redan spelad"): texten – för ledtrådsfrågor även rätt svar
+window.QK_KEY = q => q.type === 'clue' ? q.q + ' | ' + q.o[0] : q.q;
 /* Hjälpfunktioner som även används av bank-*.js.
  * gq(kategori, åldrar, svårighet, grupp, fråga, rätt, liknandeFelsvar[], övrigaFelsvar[]) väljer tre felsvar,
  * helst bland de "liknande" (t.ex. huvudstäder i samma världsdel). Slumpen är fröad så att frågorna blir likadana varje gång. */
@@ -37,8 +42,15 @@ window.QKB = (function () {
   };
   const q = (c, a, d, text, ok, ...wrong) => B.push({ c, a, d, q: text, o: [ok, ...wrong] });
   const tf = (c, a, d, text, ok) => B.push({ c, a, d, q: text, tf: ok });
+  // Nya frågetyper:
+  // num(kategori, åldrar, svårighet, fråga, svar, min, max, steg, enhet, {fmt:'year', tol})  – närmast rätt (reglage)
+  // pin(åldrar, svårighet, karta 'world'|'europa'|'sverige', fråga, platsens namn, lat, lon, okKm)  – sätt ut nålen
+  // clue(åldrar, svårighet, fråga, [ledtrådar, svårast först], rätt, fel1, fel2, fel3)  – gissa med ledtrådar
+  const num = (c, a, d, text, ans, min, max, step = 1, unit = '', x = {}) => B.push({ c, a, d, g: x.g || 'num', type: 'slider', q: text, ans, min, max, step, unit, ...x });
+  const pin = (a, d, map, text, place, lat, lon, ok) => B.push({ c: 'karta', a, d, g: 'pin-' + map, type: 'map', q: text, map, place, lat, lon, ...(ok ? { ok } : {}) });
+  const clue = (a, d, text, clues, ok, ...wrong) => B.push({ c: 'ledtrad', a, d, g: 'clue', type: 'clue', q: text, clues, o: [ok, ...wrong] });
   const gq = (c, a, d, g, text, ok, preferred, fallback) => { const w = pick(ok, preferred, fallback); if (w.length >= 2) B.push({ c, a, d, g, q: text, o: [String(ok), ...w] }); };
-  return { q, tf, gq, pick, shuf, rand };
+  return { q, tf, gq, num, pin, clue, pick, shuf, rand };
 })();
 (function () {
   const { q, tf } = window.QKB;
