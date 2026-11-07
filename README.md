@@ -17,6 +17,8 @@ På iPhone/iPad: öppna länken i Safari → Dela → *Lägg till på hemskärme
 
 Mappen `illyrian/` byggs separat (inte från `Privat`) – låt den vara kvar när Bucinca-filerna kopieras hit.
 
+**Ny version av Illyrian Domination:** höj versionen på två ställen – `VER` i uppdateringsskriptet längst ner i `illyrian/index.html` och `"v"` i `illyrian/version.json` (skriv gärna vad som är nytt i `"notes"`). Byt också cachenamnet i `illyrian/sw.js` (`illyrian-<version>`). Spelet kollar `version.json` när det startas, när man kommer tillbaka till det och var 30:e minut, och visar då *🆕 Ny version – Uppdatera*. Man kan också söka själv under ☰ Meny → 🔄 Sök efter uppdatering.
+
 ## Quiz Champions
 
 Kahoot-likt quiz för hela familjen – storskärmen visar frågorna och alla svarar med mobilen: **https://drenicapb.github.io/Spel/quizchampions/**

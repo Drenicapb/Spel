@@ -681,7 +681,7 @@ const TECH = [
   { k: 'ind', n: 'Industrialisering', b: 'Ekonomi', base: 25, ic: '🏭', d: l => `+${8 * l}% inkomst` },
   { k: 'byg', n: 'Byggteknik', b: 'Ekonomi', base: 20, ic: '🏗️', d: l => `−${pctOff(0.08, l)}% byggkostnad` },
   { k: 'agr', n: 'Lantbruk', b: 'Ekonomi', base: 20, ic: '🌾', d: l => `+${15 * l}% befolkningstillväxt · +${5 * l}% matproduktion` },
-  { k: 'utv', n: 'Utvinning', b: 'Ekonomi', base: 30, ic: '⛏️', req: { ind: 1 }, d: l => `+${25 * l}% olja, metaller, spannmål och uran från egna fält · +${2 * l} 💰/tur per resursdistrikt` },
+  { k: 'utv', n: 'Utvinning', b: 'Ekonomi', base: 30, ic: '⛏️', req: { ind: 1 }, d: l => `+${25 * l}% olja, metaller, spannmål och uran från egna fält · +${2 * l} 💰/tur per resurs${l >= 2 ? ' · prospektering upplåst' : ' · nivå 2: prospektera fram en andra resurs i ett distrikt'}` },
   { k: 'han', n: 'Handel', b: 'Ekonomi', base: 20, ic: '🚢', d: l => `Handelsavtal ger ${3 + 2 * l}% var` },
   { k: 'vet', n: 'Vetenskap', b: 'Samhälle', base: 25, ic: '🎓', d: l => `+${15 * l}% forskning` },
   { k: 'adm', n: 'Administration', b: 'Samhälle', base: 20, ic: '🏛️', d: l => `Kontroll i erövrade distrikt +${8 + 4 * l}/tur` },
@@ -743,11 +743,16 @@ const RES_C = {
   const keys = Object.keys(RES);
   keys.forEach((rk, s) => { for (const a3 in RES_C[rk]) { const c = A3[a3]; if (c == null) continue; let n = RES_C[rk][a3]; const ds = CTR[c].d.filter(i => !DIS[i].rs).sort((a, b) => ((pref[rk].includes(DIS[b].tt) ? 5000 : 0) + hsh(b, s)) - ((pref[rk].includes(DIS[a].tt) ? 5000 : 0) + hsh(a, s))); for (const i of ds) { if (n <= 0) break; DIS[i].rs = rk; n--; } } });
   for (let i = 0; i < ND; i++) if (!DIS[i].rs) { const h = hsh(i, 9); if (h < 330) DIS[i].rs = keys[h % 3]; }
+  // Några få distrikt har två resurser redan från start (helst en som passar terrängen; uran är ovanligt)
+  for (let i = 0; i < ND; i++) if (DIS[i].rs && !DIS[i].rs2) { const h = hsh(i, 23); if (h < 2000) { const opts = keys.filter(k => k !== DIS[i].rs && (k !== 'ura' || h < 150)); const pf = opts.filter(k => pref[k].includes(DIS[i].tt)); const pool = pf.length ? pf : opts; DIS[i].rs2 = pool[h % pool.length]; } }
 })();
+/* Ett distrikt kan ha upp till två resurser: DIS[i].rs och DIS[i].rs2 (rs2 sparas i S.d[i].rx2 när den prospekterats fram) */
+function rsList(i) { const D = DIS[i]; return D.rs ? (D.rs2 && D.rs2 !== D.rs ? [D.rs, D.rs2] : [D.rs]) : []; }
+function hasRs(i, k) { const D = DIS[i]; return D.rs === k || D.rs2 === k; }
 function resOf(c) {
   const r = { oil: 0, met: 0, grn: 0, ura: 0 }; if (!S || !OWN[c]) return r;
-  const um = utvMul(c); for (const i of OWN[c]) { const k = DIS[i].rs; if (k && S.d[i].ct >= 50) r[k] += um; }
-  for (let o = 0; o < NC; o++) { if (o === c || !S.c[o].alive) continue; const t = T(c, o); if (!t || !(t.tr || t.al || S.c[o].lord === c)) continue; const emb = embargoed(o, c); for (const i of OWN[o]) { const k = DIS[i].rs; if (k && !(k === 'oil' && emb)) r[k] += k === 'ura' ? 1 : 0.25; } }
+  const um = utvMul(c); for (const i of OWN[c]) { if (S.d[i].ct >= 50) for (const k of rsList(i)) r[k] += um; }
+  for (let o = 0; o < NC; o++) { if (o === c || !S.c[o].alive) continue; const t = T(c, o); if (!t || !(t.tr || t.al || S.c[o].lord === c)) continue; const emb = embargoed(o, c); for (const i of OWN[o]) for (const k of rsList(i)) { if (!(k === 'oil' && emb)) r[k] += k === 'ura' ? 1 : 0.25; } }
   r.oil += oilNet(c);
   return r;
 }
@@ -755,8 +760,38 @@ function resOf(c) {
 const OIL_TURNS = 12, MKT_TURNS = 6;
 function embargoed(a, b) { return !!(S.emb && S.emb[a + ':' + b]); }
 function utvMul(c) { return 1 + 0.25 * ((S.c[c].t && S.c[c].t.utv) || 0); }
-function resDists(c) { let n = 0; for (const i of OWN[c]) if (DIS[i].rs && S.d[i].ct >= 50) n++; return n; }
-function oilOwn(c) { let n = 0; for (const i of OWN[c]) if (DIS[i].rs === 'oil' && S.d[i].ct >= 50) n++; return Math.floor(n * utvMul(c) + 1e-9); }
+/* Prospektering: leta fram en andra resurs i ett eget distrikt (kräver Utvinning 2, max en per tur, 65 % chans) */
+const PROS_PREF = { oil: ['oken', 'slatt', 'ark'], met: ['berg'], grn: ['slatt'], ura: ['oken', 'berg'] };
+const PROS_CHANCE = 0.65;
+function prospectCost(c) { const cs = S.c[c]; return Math.round((40 + 25 * (cs.pros || 0)) * hyp(0.08, cs.t.byg || 0)); }
+function canProspect(c, i) {
+  const cs = S.c[c], d = S.d[i], D = DIS[i];
+  if (!d || d.o !== c) return 'Inte ditt distrikt';
+  if (!D.rs) return 'Distriktet saknar resurs att bygga vidare på';
+  if (D.rs2) return 'Distriktet har redan två resurser';
+  if ((cs.t.utv || 0) < 2) return 'Kräver Utvinning nivå 2';
+  if (d.ct < 50) return 'För låg kontroll';
+  if (cs.prT === S.turn) return 'Max en prospektering per tur';
+  if (cs.m < prospectCost(c)) return 'För lite pengar';
+  return '';
+}
+function prospect(c, i) {
+  if (canProspect(c, i)) return null;
+  const cs = S.c[c], D = DIS[i]; cs.m -= prospectCost(c); cs.prT = S.turn; cs.pros = (cs.pros || 0) + 1;
+  if (rnd() > PROS_CHANCE) return { ok: false };
+  const opts = Object.keys(RES).filter(k => k !== D.rs);
+  const w = opts.map(k => (k === 'ura' ? 0.3 : 1) * (PROS_PREF[k].includes(D.tt) ? 3 : 1));
+  let r = rnd() * w.reduce((a, b) => a + b, 0), k = opts[opts.length - 1];
+  for (let j = 0; j < opts.length; j++) { r -= w[j]; if (r <= 0) { k = opts[j]; break; } }
+  D.rs2 = k; S.d[i].rx2 = k;
+  return { ok: true, k };
+}
+function aiProspect(c) {
+  const cs = S.c[c]; if ((cs.t.utv || 0) < 2 || cs.prT === S.turn || rnd() > 0.12 || cs.m < prospectCost(c) * 4) return;
+  const ds = OWN[c].filter(i => !canProspect(c, i)); if (ds.length) prospect(c, pick(ds));
+}
+function resDists(c) { let n = 0; for (const i of OWN[c]) if (S.d[i].ct >= 50) n += rsList(i).length; return n; }
+function oilOwn(c) { let n = 0; for (const i of OWN[c]) if (hasRs(i, 'oil') && S.d[i].ct >= 50) n++; return Math.floor(n * utvMul(c) + 1e-9); }
 function oilContracts(c) { return (S.oc || []).filter(x => x.b === c || x.s === c); }
 function oilNet(c) { let n = 0; for (const x of (S.oc || [])) { if (x.b === c) n += x.u; if (x.s === c) n -= x.u; } return n; }
 function oilSold(c) { let n = 0; for (const x of (S.oc || [])) if (x.s === c) n += x.u; return n; }
@@ -844,7 +879,7 @@ function lobbyActive(c) { const l = S.c[c].lob || {}; return Object.keys(l).filt
 function canLobby(c, x) { if (c === x || !S.c[x].alive) return 'Ogiltigt'; if (atWar(c, x)) return 'Ni är i krig'; if (lobbyActive(c).includes(x)) return 'Kampanj pågår redan'; if (lobbyActive(c).length >= lobbyMax(c)) return `Max ${lobbyMax(c)} kampanjer samtidigt`; if (S.c[c].m < lobbyCost(c, x)) return 'För lite pengar'; return null; }
 function hireLobby(c, x) { if (canLobby(c, x)) return false; const cs = S.c[c]; cs.m -= lobbyCost(c, x); cs.lob = cs.lob || {}; cs.lob[x] = S.turn + 8; addRel(c, x, 2); return true; }
 function refreshRes() {
-  const base = []; for (let c = 0; c < NC; c++) { const r = { oil: 0, met: 0, grn: 0, ura: 0 }; if (S.c[c].alive) for (const i of OWN[c]) { const k = DIS[i].rs; if (k && S.d[i].ct >= 50) r[k]++; } base.push(r); }
+  const base = []; for (let c = 0; c < NC; c++) { const r = { oil: 0, met: 0, grn: 0, ura: 0 }; if (S.c[c].alive) for (const i of OWN[c]) { if (S.d[i].ct >= 50) for (const k of rsList(i)) r[k]++; } base.push(r); }
   const all = []; for (let c = 0; c < NC; c++) { const r = { oil: 0, met: 0, grn: 0, ura: 0 }; const um = S.c[c].alive ? utvMul(c) : 1; for (const k in r) r[k] = base[c][k] * um; if (S.c[c].alive) for (let o = 0; o < NC; o++) { if (o === c || !S.c[o].alive) continue; const t = T(c, o); if (!t || !(t.tr || t.al || S.c[o].lord === c)) continue; const b = base[o]; if (!embargoed(o, c)) r.oil += 0.25 * b.oil; r.met += 0.25 * b.met; r.grn += 0.25 * b.grn; r.ura += b.ura; } all.push(r); }
   for (let c = 0; c < NC; c++) { const cs = S.c[c]; if (!cs.alive) continue; const r = all[c]; r.oil += oilNet(c); cs.rmet = r.met; cs.rgrn = r.grn;
     let gross = 0, tk = 0; for (const i of OWN[c]) { gross += distIncome(i); tk += S.d[i].tk || 0; } const a = airOf(c); const sup = 6 + r.oil * 14 + 0.5 * Math.sqrt(gross); const dem = tk * 0.25 + (a[0] + a[1] * 2 + a[2] * 2) * 0.8 + shipsOf(c) * 0.6; const ratio = dem > 0 ? Math.min(1, sup / dem) : 1; cs.fuel = +(0.6 + 0.4 * ratio).toFixed(3); }
@@ -972,7 +1007,7 @@ const MISSIONS = {
   ally: { n: g => `Ha ${g} allierade`, v: c => alliesOf(c).length, mk: c => alliesOf(c).length + 1 },
   vas: { n: () => 'Skaffa en vasallstat', v: c => vassalsOf(c).length ? 1 : 0, mk: c => vassalsOf(c).length ? null : 1 },
   conq: { n: (g, x) => `Erövra ett distrikt från ${cname(x)}`, v: (c, x) => OWN[c].some(i => DIS[i].c === x) ? 1 : 0, mk: c => 1, x: c => { const nb = neighborCountries(c).filter(o => !allied(c, o) && S.c[o].lord !== c && !OWN[c].some(i => DIS[i].c === o)); return nb.length ? nb.sort((a, b) => powerOf(a) - powerOf(b))[0] : null; } },
-  res: { n: (g, x) => `Kontrollera ett distrikt med ${RES[x].ic} ${RES[x].n.toLowerCase()}`, v: (c, x) => OWN[c].some(i => DIS[i].rs === x) ? 1 : 0, mk: c => 1, x: c => { const miss = Object.keys(RES).filter(k => !OWN[c].some(i => DIS[i].rs === k)); return miss.length ? pick(miss) : null; } },
+  res: { n: (g, x) => `Kontrollera ett distrikt med ${RES[x].ic} ${RES[x].n.toLowerCase()}`, v: (c, x) => OWN[c].some(i => hasRs(i, x)) ? 1 : 0, mk: c => 1, x: c => { const miss = Object.keys(RES).filter(k => !OWN[c].some(i => hasRs(i, k))); return miss.length ? pick(miss) : null; } },
 };
 function missionGen() {
   const c = S.player; S.miss = S.miss || []; let guard = 0;
@@ -2031,7 +2066,7 @@ const NUKES = { USA: 3, RUS: 3, CHN: 2, GBR: 1, FRA: 1, IND: 1, PAK: 1, ISR: 1, 
 const NAVY = { USA: 2, GBR: 2, FRA: 1, JPN: 1, CHN: 1, RUS: 1, IND: 1, ITA: 1, KOR: 1, AUS: 1, ESP: 1, DEU: 1, NLD: 1, NOR: 1, TUR: 1, CAN: 1, BRA: 1 };
 
 function newGame(player, diff, goal, scen = 'std', slot = 0) {
-  seaTouch(); for (let i = 0; i < ND; i++) { if (DIS[i].rs0 === undefined) DIS[i].rs0 = DIS[i].rs || null; DIS[i].rs = DIS[i].rs0; }
+  seaTouch(); for (let i = 0; i < ND; i++) { if (DIS[i].rs0 === undefined) DIS[i].rs0 = DIS[i].rs || null; DIS[i].rs = DIS[i].rs0; if (DIS[i].rs20 === undefined) DIS[i].rs20 = DIS[i].rs2 || null; DIS[i].rs2 = DIS[i].rs20; }
   S = { v: 1, turn: 1, player, diff, goal, c: [], d: [], rel: new Array(NC * NC).fill(0), tr: {}, wars: new Set(), log: [], stats: { battles: 0, wars: 0, elim: 0, nukes: 0 }, over: 0, hist: [], z: Array.from({ length: NZ }, () => ({})), zu: {} };
   // land
   for (let i = 0; i < NC; i++) {
@@ -2143,7 +2178,7 @@ function migrate() {
   for (const c of S.c) { c.tax = c.tax ?? 1; c.sub = c.sub || 'none'; for (const k of ['pan', 'spf', 'dro', 'int', 'fly', 'smyg', 'lvt', 'icbm', 'agr', 'kul', 'utv']) c.t[k] = c.t[k] || 0; c.ic = c.ic || 0; c.lord = c.lord ?? -1; }
   if (!S.z || S.z.length !== NZ) { S.z = Array.from({ length: NZ }, () => ({})); S.zu = {}; }
   S.zu = S.zu || {};
-  rebuildOwn(); S.d.forEach((d, i) => { if (d.h == null) d.h = happyTarget(i); if (DIS[i].rs0 === undefined) DIS[i].rs0 = DIS[i].rs || null; DIS[i].rs = d.rsx || DIS[i].rs0; });
+  rebuildOwn(); S.d.forEach((d, i) => { if (d.h == null) d.h = happyTarget(i); if (DIS[i].rs0 === undefined) DIS[i].rs0 = DIS[i].rs || null; DIS[i].rs = d.rsx || DIS[i].rs0; if (DIS[i].rs20 === undefined) DIS[i].rs20 = DIS[i].rs2 || null; DIS[i].rs2 = d.rx2 || (DIS[i].rs ? DIS[i].rs20 : null); if (DIS[i].rs2 === DIS[i].rs) DIS[i].rs2 = null; });
   S.miss = S.miss || []; S.news = S.news || []; S.oc = S.oc || []; S.emb = S.emb || {}; S.won = S.won || {}; S.wb = S.wb || {}; S.gen = S.gen || []; if (!S.c[0].gov) initGov(); S.oilP = S.oilP || 8; S.oilH = S.oilH || []; S.stats.conq = S.stats.conq || []; S.scen = S.scen || 'std'; if (S.slot == null) S.slot = 0;
   refreshRes(); if (!S.miss.length && S.c[S.player].alive) missionGen();
 }
@@ -2159,6 +2194,7 @@ function aiTurn(c) {
   aiDiplomacy(c);
   if (!cs.alive) return;
   aiResearch(c);
+  aiProspect(c);
   aiEconomy(c);
   aiNavy(c);
   aiOil(c);
@@ -2501,6 +2537,7 @@ function randomEvent() {
 
 /* ---------- export ---------- */
 window.G = {
+  rsList, hasRs, canProspect, prospect, prospectCost, PROS_CHANCE,
   M, DIS, CTR, ND, NC, TECH, TK, BLD, BMAX, PERS, RANGE, TREATY_N, NUKE_COST,
   get S() { return S; }, set REPORT(v) { REPORT = v; }, get OWN() { return OWN; }, get REPORT() { return REPORT; }, get PENDING() { return PENDING; }, set PENDING(v) { PENDING = v; },
   flagOf, cname, dateOf, clamp, pk, T, atWar, allied, hasNap, rel, addRel, enemiesOf, alliesOf, countTreaty,
@@ -2527,7 +2564,7 @@ window.G = {
 };
 /* nätverksspel: blockera drag när det inte är din tur */
 (function () {
-  const MUT = 'threatSpy unPropose2 upgrade upgradeN recruit research research_ moveTroops battle battleMulti declareWar endWar nuke buildNuke executeDeal proposeDeal sendGift cancelTreaty buyAir airStrike airDrop buyMarket cancelOil setEmbargo setGov buildWonder hireGen moveGen fireGen startCI spy applyEvent hireLobby releaseMany releaseDistrict marchOrder cancelOrder bombard moveAir moveForce buildICBM launchNuke buyShips moveFleet makeVassal annexVassal freeVassal setPolicy applyElection endTurn signOil'.split(' ');
+  const MUT = 'prospect threatSpy unPropose2 upgrade upgradeN recruit research research_ moveTroops battle battleMulti declareWar endWar nuke buildNuke executeDeal proposeDeal sendGift cancelTreaty buyAir airStrike airDrop buyMarket cancelOil setEmbargo setGov buildWonder hireGen moveGen fireGen startCI spy applyEvent hireLobby releaseMany releaseDistrict marchOrder cancelOrder bombard moveAir moveForce buildICBM launchNuke buyShips moveFleet makeVassal annexVassal freeVassal setPolicy applyElection endTurn signOil'.split(' ');
   for (const k of MUT) { const f = G[k]; if (typeof f !== 'function') continue; G[k] = function (...a) { if (mpLocked()) { try { if (G.onLocked) G.onLocked(k); } catch (e) { } return k === 'proposeDeal' ? { ok: false, ev: { v: -999 } } : null; } return f.apply(this, a); }; }
 })();
 </script>
@@ -3110,6 +3147,7 @@ window.G = {
       if (g.genAt(i) && D.sz * v.k > 24) drawSprite('🎖️', x0 - 8, sy, 14);
       { const wk = g.wonderAt(i); if (wk && D.sz * v.k > 20) { const pz = Math.max(16, Math.min(34, D.sz * v.k * 0.3)); ctx.fillStyle = 'rgba(255,215,106,0.25)'; ctx.beginPath(); ctx.arc(sx, sy - 22 - pz * 0.3, pz * 0.62, 0, TAU); ctx.fill(); drawSprite(g.WK[wk].ic, sx, sy - 22 - pz * 0.3, pz); } }
       if (D.rs && D.sz * v.k > 50) drawSprite(g.RES[D.rs].ic, x0 + w + 9, sy, 13, 0.95);
+      if (D.rs2 && D.sz * v.k > 50) drawSprite(g.RES[D.rs2].ic, x0 + w + 24, sy, 13, 0.95);
       if (D.sz * v.k > 60 && d.ct < 100) { { ctx.fillStyle = 'rgba(0,0,0,0.5)'; rr(sx - 18, sy - 17, 36, 4, 2); ctx.fill(); ctx.fillStyle = d.ct < 45 ? '#ef5350' : '#ffc94d'; rr(sx - 18, sy - 17, 36 * d.ct / 100, 4, 2); ctx.fill(); }
       }
     }
@@ -3609,7 +3647,7 @@ window.NET = (function () {
       <div><i>👥</i><b>${popTxt(d.pop)}</b><small class="${gr >= 0 ? 'good' : 'bad'}">${growTxt(gr)}</small></div>
       <button id="dp-happy"><i>${happyFace(d.h)}</i><b class="${d.h < 30 ? 'bad' : d.h < 50 ? 'mid' : 'good'}">${d.h}</b><small>nöjdhet ›</small></button>
       <div><i>🧱</i><b>×${g.defStr(i).toFixed(2)}</b><small>försvar${g.fighters(i) ? ' +✈️' : ''}</small></div></div>`;
-    { const tt = g.TERR[D.tt || 'slatt']; const rs = D.rs ? g.RES[D.rs] : null; h += `<div class="minirow tags">${rs ? `<span class="res">${rs.ic} ${rs.n}</span>` : ''}<span>${tt.ic} ${tt.n}${tt.def ? ` <b>+${Math.round(tt.def * 100)}%</b>` : ''}</span>${g.isWinter(i) ? '<span class="win">❄️ Vinter <b>+20%</b></span>' : ''}</div>`; }
+    { const tt = g.TERR[D.tt || 'slatt']; const rs = D.rs ? g.RES[D.rs] : null, rs2 = D.rs2 ? g.RES[D.rs2] : null; h += `<div class="minirow tags">${rs ? `<span class="res">${rs.ic} ${rs.n}</span>` : ''}${rs2 ? `<span class="res">${rs2.ic} ${rs2.n}</span>` : ''}<span>${tt.ic} ${tt.n}${tt.def ? ` <b>+${Math.round(tt.def * 100)}%</b>` : ''}</span>${g.isWinter(i) ? '<span class="win">❄️ Vinter <b>+20%</b></span>' : ''}</div>`; }
     // larm
     if (occ) { const need = g.integTurns(o); const ig = d.ig || 0; h += `<div class="note"><div class="row"><span class="grow">🏳️ Ockuperat från ${g.flagOf(d.core)} ${esc(CTR[d.core].n)}${s.c[d.core].alive ? '' : ' (utslaget)'}</span><b>${ig}/${need}</b></div><div class="bar thin"><i style="width:${Math.min(100, ig / need * 100)}%;background:var(--gold)"></i></div><div class="tiny muted">${d.ct >= 90 ? (d.h >= 20 ? `Kärnland om ca ${Math.ceil((need - ig) / (d.h >= 60 ? 2 : 1))} turer` : 'För missnöjt – integrationen står still') : 'Integrationen börjar vid 90% kontroll'}</div></div>`; }
     if (d.zs_b) h += `<div class="note bad">⚓ Blockad av fientlig flotta – inkomst −20%</div>`;
@@ -3627,6 +3665,7 @@ window.NET = (function () {
         if (d.ct < 50) h += `<div class="tiny muted" style="margin-top:6px">Kontrollen måste vara minst 50% för att rekrytera och 40% för att bygga.</div>`;
       } else if (tab === 'bld') {
         h += `<div class="blist">${bldRows(i)}</div>`;
+        if (D.rs && !D.rs2) { const why = g.canProspect(me, i); h += `<div class="msec"><div class="row"><b class="grow">⛏️ Prospektera</b><span class="tiny muted">${g.prospectCost(me)} 💰 · ${Math.round(g.PROS_CHANCE * 100)} % chans</span></div><div class="tiny muted">Leta efter en andra naturresurs här. Kräver Utvinning nivå 2 och går en gång per tur.</div><div class="btns"><button class="btn sm" id="dp-pros" ${why ? 'disabled' : ''}>⛏️ Prospektera${why ? ` – ${esc(why)}` : ''}</button></div></div>`; }
       } else {
         const af = d.af || [0, 0, 0]; const nAir = af[0] + af[1] + af[2];
         h += `<div class="msec"><div class="row"><b class="grow">🪖 Armé</b><span class="tiny muted">${g.avail(i)} av ${d.tr} redo · ${g.recruitCap(i)} p rekrytering kvar</span></div>${compLine(g.comp(i))}<div class="btns two"><button class="btn grn sm" id="dp-rec">Rekrytera</button><button class="btn pri sm" id="dp-move" ${g.avail(i) ? '' : 'disabled'}>Flytta / Anfall</button></div></div>`;
@@ -3662,6 +3701,7 @@ window.NET = (function () {
     P.querySelectorAll('[data-dt]').forEach(b => b.onclick = () => { UI.dtab = b.dataset.dt; SFX.play('click'); renderDPanel(); });
     bindBld(P, i, () => refresh());
     if (q('#dp-rec')) q('#dp-rec').onclick = () => recruitModal(i);
+    if (q('#dp-pros')) q('#dp-pros').onclick = () => { const r = g.prospect(me, i); if (!r) return; if (r.ok) { SFX.play('build'); toast(`⛏️ Fynd! ${g.RES[r.k].ic} ${g.RES[r.k].n} i ${esc(DIS[i].n)}`, 'good'); } else { SFX.play('deny'); toast('⛏️ Geologerna hittade inget den här gången', 'bad'); } refresh(); };
     if (q('#dp-move')) q('#dp-move').onclick = () => startTarget(i);
     if (q('#dp-atk')) q('#dp-atk').onclick = () => attackModal(i);
     if (q('#dp-nuke')) q('#dp-nuke').onclick = () => nukeModal(i);
@@ -4499,9 +4539,11 @@ window.NET = (function () {
       <label class="tog"><span>☁️ Moln över kartan</span><input type="checkbox" data-opt="clouds" ${FX.OPT.clouds ? 'checked' : ''}></label>
       <label class="tog"><span>📰 Nyhetsremsa</span><input type="checkbox" data-opt="news" ${FX.OPT.news ? 'checked' : ''}></label>
       <label class="tog"><span>🔋 Spara batteri (färre effekter)</span><input type="checkbox" data-opt="lowfx" ${FX.OPT.lowfx ? 'checked' : ''}></label>
-      <p class="tiny muted" style="margin-top:14px">Spelet sparas automatiskt efter varje tur. Byt sparplats via 🏠 Startskärmen.</p></div>`;
+      <p class="tiny muted" style="margin-top:14px">Spelet sparas automatiskt efter varje tur. Byt sparplats via 🏠 Startskärmen.</p>
+      <div class="sect">Version</div><div class="row"><span class="grow tiny muted">Illyrian Domination ${window.ILLYRIAN_VER || ''}</span><button class="btn sm" id="m-upd">🔄 Sök efter uppdatering</button></div></div>`;
     P.querySelector('#m-save').onclick = () => { const ok = g.saveGame(); toast(ok ? '💾 Sparat' : 'Kunde inte spara i den här webbläsaren', ok ? 'good' : 'bad'); };
     P.querySelector('#m-un').onclick = () => unProposeModal();
+    P.querySelector('#m-upd').onclick = () => { if (window.illyrianUpdate) window.illyrianUpdate.check(true); };
     P.querySelector('#m-help').onclick = helpModal; P.querySelector('#m-rank').onclick = () => openPanel('rank'); P.querySelector('#m-log').onclick = () => openPanel('log'); P.querySelector('#m-won').onclick = () => wonderModal(); P.querySelector('#m-cult').onclick = () => cultureModal(); P.querySelector('#m-gov').onclick = () => govModal(); P.querySelector('#m-stats').onclick = statsModal; P.querySelector('#m-miss').onclick = missionsModal;
     P.querySelectorAll('[data-opt]').forEach(cb => cb.onchange = () => { FX.OPT[cb.dataset.opt] = cb.checked; FX.saveOpt(); FX.markDirty(); if (cb.dataset.opt === 'sound' && cb.checked) SFX.play('coin'); renderNews(); });
     P.querySelector('#m-home').onclick = () => { g.saveGame(); closePanel(); select(-1); showStart(); };
@@ -4523,7 +4565,7 @@ window.NET = (function () {
       <p><b>🌊 Hav &amp; ⚓ flotta:</b> haven är indelade i zoner. Trupper når bara så många zoner över havet som din Flotta-forskning tillåter, och kan inte passera zoner med fientliga flottor. Bygg en <b>⚓ Hamn</b> och krigsskepp, tryck på en havszon och flytta flottan för att skydda dina vatten, blockera fiendens kuster (−20% inkomst) och stödja landstigningar.</p>
       <p><b>📜 Land:</b> tryck på ett främmande distrikt och välj <b>Förhandla om distriktet</b> för att köpa eller kräva land. Andra länder kan vilja köpa tillbaka sitt gamla land.</p>
       <p><b>✈️ Luftförsvar:</b> attackflyg som står i ett distrikt (och inte använts denna tur) försvarar det passivt: de stärker försvaret mot markanfall och hjälper luftvärnet att skjuta ner fientligt flyg. Flytta plan mellan dina flygbaser under distriktets flik Militär.</p>
-      <p><b>📦 Resurser:</b> vissa distrikt har 🛢️ olja, ⛏️ metaller, 🌽 spannmål eller ☢️ uran. Olja driver stridsvagnar, flyg och fartyg – vid brist blir de svagare. Metaller gör militärköp billigare, spannmål ger tillväxt och nöjdhet, och uran krävs för kärnvapen. Handelspartner delar med sig.</p>
+      <p><b>📦 Resurser:</b> vissa distrikt har 🛢️ olja, ⛏️ metaller, 🌽 spannmål eller ☢️ uran. Olja driver stridsvagnar, flyg och fartyg – vid brist blir de svagare. Metaller gör militärköp billigare, spannmål ger tillväxt och nöjdhet, och uran krävs för kärnvapen. Handelspartner delar med sig. Ett distrikt kan ha <b>två resurser</b> – några har det från start, och med forskningen Utvinning nivå 2 kan du prospektera fram en andra (fliken 🏗️ Bygg i distriktet).</p>
       <p><b>🛢️ Oljehandel:</b> köp olja på världsmarknaden (Ekonomi → Oljehandel), förhandla fram oljeavtal med länder (Diplomati → land → 🛢️ Olja) eller sälj ditt eget överskott. Med <b>🚫 oljeembargo</b> stoppar du din olja till ett land. Priset stiger när oljeländer är i krig.</p>
       <p><b>⛰️ Terräng &amp; ❄️ vinter:</b> berg (+25%), arktis (+20%), djungel (+15%) och öken (+10%) ger försvarsbonus. På vintern (dec–feb i norr, jun–aug i söder) får distrikt långt från ekvatorn +20% försvar.</p>
       <p><b>🕵️ Spionage:</b> stjäl forskning, sabotera byggnader, uppvigla folket eller kartlägg ett land. Forskningen Underrättelse ger fler agenter och bättre chans.</p>
@@ -5172,6 +5214,48 @@ window.NET = (function () {
   }, true);
   window.UIX = { refresh, select, selectZone, openPanel, endTurn, focusOn, UI, playEvents, recruitModal, releaseModal, happyModal, dealModal, handlePending, mpFinish, mpHub, renderTurnBtn };
   init();
+})();
+</script>
+<script>/* ============ UPPDATERING: hittar nya versioner (version.json) och laddar in dem ============ */
+(function () {
+  const VER = '7.2'; window.ILLYRIAN_VER = VER;
+  const newer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
+  const css = 'position:fixed;left:50%;transform:translateX(-50%);z-index:99999;max-width:min(560px,calc(100vw - 24px));background:#0f2236;color:#fff;border:1px solid #e0b84a;border-radius:14px;padding:12px 14px;font:15px/1.4 system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.5);';
+  let shown = null;
+  function say(t) {
+    const el = document.createElement('div'); el.style.cssText = css + 'top:calc(14px + env(safe-area-inset-top));'; el.textContent = t;
+    document.body.appendChild(el); setTimeout(() => el.remove(), 3500);
+  }
+  function inMp() { try { return !!(window.G && G.S && G.S.mp); } catch (e) { return false; } }
+  function show(j) {
+    if (shown === j.v || document.getElementById('upd-bar')) return; shown = j.v;
+    const el = document.createElement('div'); el.id = 'upd-bar'; el.style.cssText = css + 'bottom:calc(16px + env(safe-area-inset-bottom));';
+    el.innerHTML = `<div style="font-weight:700;margin-bottom:4px">🆕 Ny version ${String(j.v).replace(/[<>&]/g, '')} av Illyrian Domination</div>`
+      + (j.notes ? `<div style="opacity:.85;font-size:13px;margin-bottom:8px">${String(j.notes).replace(/[<>&]/g, '')}</div>` : '')
+      + (inMp() ? '<div style="opacity:.85;font-size:13px;margin-bottom:8px">Du är mitt i ett nätverksspel – uppdatera gärna när det är klart.</div>' : '<div style="opacity:.85;font-size:13px;margin-bottom:8px">Ditt spel sparas först, sedan laddas den nya versionen.</div>')
+      + '<div style="display:flex;gap:8px;justify-content:flex-end"><button id="upd-later" style="padding:8px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff;font:inherit">Senare</button><button id="upd-go" style="padding:8px 14px;border-radius:10px;border:0;background:#e0b84a;color:#1a1200;font:inherit;font-weight:700">🔄 Uppdatera</button></div>';
+    document.body.appendChild(el);
+    el.querySelector('#upd-later').onclick = () => el.remove();
+    el.querySelector('#upd-go').onclick = () => apply();
+  }
+  async function check(manual) {
+    try {
+      const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); const j = await r.json();
+      if (j && j.v && newer(j.v, VER)) { if (manual) shown = null; show(j); return true; }
+      if (manual) say(`✅ Du har den senaste versionen (${VER})`);
+    } catch (e) { if (manual) say('Kunde inte söka efter uppdatering – är du ansluten till internet?'); }
+    return false;
+  }
+  async function apply() {
+    try { if (window.G && G.saveGame && !inMp()) G.saveGame(); } catch (e) { }
+    try { const regs = navigator.serviceWorker && navigator.serviceWorker.getRegistrations ? await navigator.serviceWorker.getRegistrations() : []; await Promise.all(regs.map(r => r.update().catch(() => { }))); } catch (e) { }
+    try { const ks = await caches.keys(); await Promise.all(ks.filter(k => k.startsWith('illyrian-')).map(k => caches.delete(k))); } catch (e) { }
+    location.reload();
+  }
+  addEventListener('load', () => setTimeout(() => check(false), 4000));
+  setInterval(() => check(false), 30 * 60 * 1000);
+  document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(false); });
+  window.illyrianUpdate = { check, apply, VER };
 })();
 </script>
 <script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
