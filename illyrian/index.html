@@ -4540,7 +4540,7 @@ window.NET = (function () {
       <label class="tog"><span>📰 Nyhetsremsa</span><input type="checkbox" data-opt="news" ${FX.OPT.news ? 'checked' : ''}></label>
       <label class="tog"><span>🔋 Spara batteri (färre effekter)</span><input type="checkbox" data-opt="lowfx" ${FX.OPT.lowfx ? 'checked' : ''}></label>
       <p class="tiny muted" style="margin-top:14px">Spelet sparas automatiskt efter varje tur. Byt sparplats via 🏠 Startskärmen.</p>
-      <div class="sect">Version</div><div class="row"><span class="grow tiny muted">Illyrian Domination ${window.ILLYRIAN_VER || ''}</span><button class="btn sm" id="m-upd">🔄 Sök efter uppdatering</button></div></div>`;
+      <div class="sect">Version</div><div class="row"><span class="grow tiny muted">Illyrian Domination ${window.ILLYRIAN_VER || ''}${window.IllyrianApp ? ' · app' : ''}</span><button class="btn sm" id="m-upd">🔄 Sök efter uppdatering</button></div>${!window.IllyrianApp && /Android/i.test(navigator.userAgent) ? '<div class="btns" style="margin-top:8px"><a class="btn" href="../app/IllyrianDomination.apk" download>📲 Ladda ner Android-appen</a></div>' : ''}</div>`;
     P.querySelector('#m-save').onclick = () => { const ok = g.saveGame(); toast(ok ? '💾 Sparat' : 'Kunde inte spara i den här webbläsaren', ok ? 'good' : 'bad'); };
     P.querySelector('#m-un').onclick = () => unProposeModal();
     P.querySelector('#m-upd').onclick = () => { if (window.illyrianUpdate) window.illyrianUpdate.check(true); };
@@ -5216,12 +5216,16 @@ window.NET = (function () {
   init();
 })();
 </script>
-<script>/* ============ UPPDATERING: hittar nya versioner (version.json) och laddar in dem ============ */
+<script>/* ============ UPPDATERING: hittar nya versioner (version.json) och laddar in dem ============
+   På webben: kollar version.json bredvid sidan. I Android-appen (window.IllyrianApp) sköter appen nedladdningen
+   och anropar window.illyrianUpdate.fromApp({state, v, notes}). */
 (function () {
-  const VER = '7.2'; window.ILLYRIAN_VER = VER;
+  const VER = '7.3'; window.ILLYRIAN_VER = VER;
+  const APP = window.IllyrianApp || null;
   const newer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
   const css = 'position:fixed;left:50%;transform:translateX(-50%);z-index:99999;max-width:min(560px,calc(100vw - 24px));background:#0f2236;color:#fff;border:1px solid #e0b84a;border-radius:14px;padding:12px 14px;font:15px/1.4 system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.5);';
-  let shown = null;
+  const clean = t => String(t || '').replace(/[<>&]/g, '');
+  let shown = null, manualAsk = false;
   function say(t) {
     const el = document.createElement('div'); el.style.cssText = css + 'top:calc(14px + env(safe-area-inset-top));'; el.textContent = t;
     document.body.appendChild(el); setTimeout(() => el.remove(), 3500);
@@ -5230,15 +5234,16 @@ window.NET = (function () {
   function show(j) {
     if (shown === j.v || document.getElementById('upd-bar')) return; shown = j.v;
     const el = document.createElement('div'); el.id = 'upd-bar'; el.style.cssText = css + 'bottom:calc(16px + env(safe-area-inset-bottom));';
-    el.innerHTML = `<div style="font-weight:700;margin-bottom:4px">🆕 Ny version ${String(j.v).replace(/[<>&]/g, '')} av Illyrian Domination</div>`
-      + (j.notes ? `<div style="opacity:.85;font-size:13px;margin-bottom:8px">${String(j.notes).replace(/[<>&]/g, '')}</div>` : '')
-      + (inMp() ? '<div style="opacity:.85;font-size:13px;margin-bottom:8px">Du är mitt i ett nätverksspel – uppdatera gärna när det är klart.</div>' : '<div style="opacity:.85;font-size:13px;margin-bottom:8px">Ditt spel sparas först, sedan laddas den nya versionen.</div>')
+    el.innerHTML = `<div style="font-weight:700;margin-bottom:4px">🆕 Ny version ${clean(j.v)} av Illyrian Domination</div>`
+      + (j.notes ? `<div style="opacity:.85;font-size:13px;margin-bottom:8px">${clean(j.notes)}</div>` : '')
+      + (inMp() ? '<div style="opacity:.85;font-size:13px;margin-bottom:8px">Du är mitt i ett nätverksspel – uppdatera gärna när det är klart.</div>' : `<div style="opacity:.85;font-size:13px;margin-bottom:8px">Ditt spel sparas först, sedan laddas den nya versionen.${APP ? ' Väljer du Senare installeras den nästa gång du startar appen.' : ''}</div>`)
       + '<div style="display:flex;gap:8px;justify-content:flex-end"><button id="upd-later" style="padding:8px 14px;border-radius:10px;border:1px solid rgba(255,255,255,.3);background:transparent;color:#fff;font:inherit">Senare</button><button id="upd-go" style="padding:8px 14px;border-radius:10px;border:0;background:#e0b84a;color:#1a1200;font:inherit;font-weight:700">🔄 Uppdatera</button></div>';
     document.body.appendChild(el);
     el.querySelector('#upd-later').onclick = () => el.remove();
     el.querySelector('#upd-go').onclick = () => apply();
   }
   async function check(manual) {
+    if (APP) { manualAsk = !!manual; try { APP.checkUpdate(!!manual); } catch (e) { } return; }
     try {
       const r = await fetch('version.json?t=' + Date.now(), { cache: 'no-store' }); const j = await r.json();
       if (j && j.v && newer(j.v, VER)) { if (manual) shown = null; show(j); return true; }
@@ -5246,8 +5251,19 @@ window.NET = (function () {
     } catch (e) { if (manual) say('Kunde inte söka efter uppdatering – är du ansluten till internet?'); }
     return false;
   }
+  // Svar från Android-appen
+  function fromApp(j) {
+    j = j || {}; const m = manualAsk || j.manual;
+    if (j.state === 'ready') { if (m) shown = null; show(j); }
+    else if (j.state === 'downloading' && m) say(`⬇️ Laddar ner version ${clean(j.v)} …`);
+    else if (j.state === 'none' && m) say(`✅ Du har den senaste versionen (${VER})`);
+    else if (j.state === 'error' && m) say('Kunde inte söka efter uppdatering – är du ansluten till internet?');
+    else if (j.state === 'app' && m) say('📲 En ny version av appen finns – se rutan.');
+    manualAsk = false;
+  }
   async function apply() {
     try { if (window.G && G.saveGame && !inMp()) G.saveGame(); } catch (e) { }
+    if (APP) { try { APP.applyUpdate(); } catch (e) { } return; }
     try { const regs = navigator.serviceWorker && navigator.serviceWorker.getRegistrations ? await navigator.serviceWorker.getRegistrations() : []; await Promise.all(regs.map(r => r.update().catch(() => { }))); } catch (e) { }
     try { const ks = await caches.keys(); await Promise.all(ks.filter(k => k.startsWith('illyrian-')).map(k => caches.delete(k))); } catch (e) { }
     location.reload();
@@ -5255,9 +5271,9 @@ window.NET = (function () {
   addEventListener('load', () => setTimeout(() => check(false), 4000));
   setInterval(() => check(false), 30 * 60 * 1000);
   document.addEventListener('visibilitychange', () => { if (document.visibilityState === 'visible') check(false); });
-  window.illyrianUpdate = { check, apply, VER };
+  window.illyrianUpdate = { check, apply, fromApp, VER, inApp: !!APP };
 })();
 </script>
-<script>if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
+<script>if('serviceWorker' in navigator&&!window.IllyrianApp)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));</script>
 </body>
 </html>

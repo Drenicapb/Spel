@@ -1,1 +1,22 @@
-{"v": "7.2", "notes": "Distrikt kan ha två resurser · prospektera fram en ny resurs med Utvinning 2 · spelet hittar själv nya versioner"}
+{
+ "v": "7.3",
+ "notes": "Android-app med hela spelet inbyggt · distrikt kan ha två resurser · prospektering",
+ "files": {
+  "index.html": "3f6ba381d59399d4f7a63d780456ac6cbdd0491b173a368419477bf3a476eb16",
+  "terrain.jpg": "536ce4cd7fb3326eeec71c031b3acabd8ac4f0167b6dc7d3491a2770193b3f75",
+  "clouds.webp": "ac9553190ed3a5ec0f832dd5e9304352c690c4423edf6ac898ff1d3b63527af4",
+  "cover.jpg": "3fb4f334becec86737118bd07a0ba83e0ad2d0c7d47e4d4b15e41219e219ee81",
+  "intro.mp4": "a32286b9a78b6b4dea0e50181d20272c3bc9036398b92e8a84b2892db9da74e6",
+  "manifest.webmanifest": "a9773cb28277585f276b30678f2409936d324536a04df896c0deda8bb1fca9d1",
+  "icons/apple-touch-icon.png": "66e18d491a935c890452fac1b9f3ab5f6efae3d8651fa2c1f62ad88fa8f19d23",
+  "icons/icon-192.png": "ceb0d49bb77d067523af31c93ea0c9f7fbcdb962695dc33c2c793a8ddfa6e9fb",
+  "icons/icon-512.png": "ed9e90ce824bb8565c859482bd8dc5639cf7a16df2777d0a3cc54d02ad0a6af6",
+  "icons/icon-maskable-512.png": "63d4f21841f2ae23c103226d299895fbfb834a5dc31325f40026f89b862bd2e3"
+ },
+ "apk": {
+  "code": 1,
+  "name": "1.0",
+  "url": "https://drenicapb.github.io/Spel/app/IllyrianDomination.apk"
+ },
+ "minApp": 1
+}

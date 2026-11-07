@@ -1,5 +1,5 @@
-/* Illyrian Domination – offlinestöd. Version 7.2 */
-const C = 'illyrian-7.2';
+/* Illyrian Domination – offlinestöd. Version 7.3 */
+const C = 'illyrian-7.3';
 const FILES = ["./","index.html","terrain.jpg","clouds.webp","cover.jpg","manifest.webmanifest","icons/apple-touch-icon.png","icons/icon-192.png","icons/icon-512.png","icons/icon-maskable-512.png"];
 self.addEventListener('install', e => { e.waitUntil(caches.open(C).then(c => c.addAll(FILES)).then(() => self.skipWaiting())); });
 self.addEventListener('activate', e => { e.waitUntil(caches.keys().then(ks => Promise.all(ks.filter(k => k.startsWith('illyrian-') && k !== C).map(k => caches.delete(k)))).then(() => self.clients.claim())); });

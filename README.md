@@ -17,7 +17,9 @@ På iPhone/iPad: öppna länken i Safari → Dela → *Lägg till på hemskärme
 
 Mappen `illyrian/` byggs separat (inte från `Privat`) – låt den vara kvar när Bucinca-filerna kopieras hit.
 
-**Ny version av Illyrian Domination:** höj versionen på två ställen – `VER` i uppdateringsskriptet längst ner i `illyrian/index.html` och `"v"` i `illyrian/version.json` (skriv gärna vad som är nytt i `"notes"`). Byt också cachenamnet i `illyrian/sw.js` (`illyrian-<version>`). Spelet kollar `version.json` när det startas, när man kommer tillbaka till det och var 30:e minut, och visar då *🆕 Ny version – Uppdatera*. Man kan också söka själv under ☰ Meny → 🔄 Sök efter uppdatering.
+**Android-app:** **https://drenicapb.github.io/Spel/app/IllyrianDomination.apk** – hela spelet ligger i appen och fungerar utan internet (utom nätverksspel). Appen hämtar nya versioner av spelet själv från `illyrian/version.json`; en ny APK behövs bara när själva appen ändras. Koden finns i det privata repot `Privat` (gren `illyrian`).
+
+**Ny version av Illyrian Domination:** höj `VER` i uppdateringsskriptet längst ner i `illyrian/index.html` och cachenamnet i `illyrian/sw.js` (`illyrian-<version>`), kör sedan `python3 tools/make_version.py illyrian <version> "Vad som är nytt"` (skriptet ligger i Privat, gren `illyrian`) – det skriver `illyrian/version.json` med kontrollsummor så att appen bara laddar ner ändrade filer. Spelet kollar efter nya versioner vid start, när man kommer tillbaka till det och var 30:e minut och visar då *🆕 Ny version – Uppdatera*; man kan också söka själv under ☰ Meny → 🔄 Sök efter uppdatering.
 
 ## Quiz Champions
 
