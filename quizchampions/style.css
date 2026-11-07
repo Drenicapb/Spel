@@ -528,3 +528,8 @@ body.reconnecting #reconn { display: flex; }
   .scale { height: 110px; margin: 0 14px; }
   .hq-map .mapbox { max-height: 46vh; }
 }
+
+/* Musikquiz med tema */
+.pre-head { margin: 26px 0 4px; font-family: var(--display); font-weight: 400; font-size: 1.4rem; color: var(--gold1); }
+.pre-sub { margin: 0 0 12px; }
+.preset.theme { border-color: rgba(255,207,63,.35); }

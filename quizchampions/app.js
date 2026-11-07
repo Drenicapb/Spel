@@ -352,6 +352,7 @@ function musicQuestion(s, age, all) {
   return { id: 'sp:' + s.id, type: 'music', cat: 'spotify', text, opts, correct: opts.indexOf(right), track: { id: s.id, t: s.t, ar: s.ar, y: s.y }, band: bandOf(s) };
 }
 function buildQuiz(o) {
+  if (o.theme) return buildThemeQuiz(o.theme, o.count);
   const used = new Set(store.get('used', []));
   const cats = (o.cats && o.cats.length) ? o.cats : Object.keys(CATS).filter(c => c !== 'spotify');
   const ageOk = q => o.age === 'f' || String(q.a).includes(o.age);
@@ -387,7 +388,12 @@ function buildQuiz(o) {
   let qs = shuffle(picked);
   const catOf = x => x.c || x.cat;
   for (let i = 1; i < qs.length; i++) if (catOf(qs[i]) === catOf(qs[i - 1])) { const j = qs.findIndex((x, k) => k > i && catOf(x) !== catOf(qs[i - 1])); if (j > 0) [qs[i], qs[j]] = [qs[j], qs[i]]; }
-  const runtime = qs.map(q => {
+  const runtime = qs.map(q => bankToRuntime(q, o));
+  store.set('used', [...used, ...runtime.map(q => q.id)].slice(-2500));
+  const catNames = cats.length > 3 ? 'Blandat' : cats.map(c => CATS[c]?.n).join(', ');
+  return { title: o.title || `${AGES[o.age].e} ${AGES[o.age].quiz} – ${catNames}`, questions: runtime, age: o.age, gen: o };
+}
+function bankToRuntime(q, o) {
     if (q.type === 'music') return { ...q, time: autoTime('music', o.age, o.time) };
     const id = hash(QK_KEY(q));
     const base = { id, cat: q.c, band: bandOf(q), text: q.q };
@@ -397,10 +403,84 @@ function buildQuiz(o) {
     if ('tf' in q) return { id, type: 'tf', cat: q.c, band: bandOf(q), text: q.q, opts: ['Sant', 'Falskt'], correct: q.tf ? 0 : 1, time: autoTime('tf', o.age, o.time) };
     const idx = shuffle(q.o.map((_, i) => i));
     return { id, type: 'mc', cat: q.c, band: bandOf(q), text: q.q, opts: idx.map(i => q.o[i]), correct: idx.indexOf(0), time: autoTime('mc', o.age, o.time) };
-  });
-  store.set('used', [...used, ...runtime.map(q => q.id)].slice(-2500));
-  const catNames = cats.length > 3 ? 'Blandat' : cats.map(c => CATS[c]?.n).join(', ');
-  return { title: o.title || `${AGES[o.age].e} ${AGES[o.age].quiz} – ${catNames}`, questions: runtime, age: o.age, gen: o };
+}
+
+// ───────────────────────── Musikquiz med tema ─────────────────────────
+// Varje tema har en större pott (låtar i tema-songs.js + faktafrågor med tema i bank-musiktema.js).
+// Ett quiz tar THEME_COUNT frågor – helst sådana som inte har spelats än – så frågorna roterar mellan omgångarna.
+const THEME_COUNT = 50;
+const THEMES = [
+  { id: 'hiphop', e: '🎤', n: 'Hiphop', d: 'Gissa artist, låt och år – från gangsta rap och södra USA till dagens trap, plus hiphopfakta.' },
+  { id: '90tal', e: '📼', n: '90-talet', d: 'Pop, rock, eurodisco och R&B från 1990–1999.' },
+  { id: '00tal', e: '💿', n: '00-talet', d: 'Hits från 2000–2009: pop, rock, hiphop och R&B.' },
+  { id: 'albansk', e: '🇦🇱', n: 'Albansk musik', d: 'Dua Lipa, Ava Max, Bebe Rexha, Rita Ora med flera – plus Eurovision, Festivali i Këngës och folkmusik.' },
+  { id: '2pac', e: '👑', n: '2Pac', d: 'Låtar, album och livet för Tupac Shakur.' },
+  { id: 'jul', e: '🎄', n: 'Julmusik', d: 'Julklassiker att lyssna på och frågor om julens låtar – svenska och internationella.' },
+];
+const TPAC_ALBUMS = ['All Eyez On Me', 'Me Against The World', 'Strictly 4 My N.I.G.G.A.Z...', '2Pacalypse Now', 'The Don Killuminati: The 7 Day Theory', 'R U Still Down? [Remember Me]', 'Until The End Of Time', 'Loyal To The Game', 'Better Dayz'];
+function themePool(id) {
+  const raw = (window.QK_THEME_SONGS || {})[id] || [];
+  return raw.map(([sid, t, ar, y, yok, alb], i) => ({ id: sid, t, ar, y, yok: !!yok, alb, rank: i }));
+}
+function themeCount(id) {
+  const songs = themePool(id).length, facts = BANK.filter(q => q.tema === id).length;
+  return { songs, facts, total: songs + facts };
+}
+function buildThemeQuiz(id, count = THEME_COUNT) {
+  const th = THEMES.find(t => t.id === id); if (!th) return null;
+  const used = new Set(store.get('used', [])), o = { age: 'f', time: 'auto' };
+  const songs = themePool(id), oneArtist = id === '2pac';
+  // Låtfrågor: en variant per låt (artist, titel, år eller album) – oanvända varianter först
+  const songQ = s => {
+    const v = [];
+    if (!oneArtist) v.push('artist');
+    v.push('title');
+    if (s.yok && id !== 'jul') v.push('year');
+    if (s.alb && TPAC_ALBUMS.includes(s.alb)) v.push('album');
+    const fresh = v.filter(x => !used.has(`sp:${s.id}:${x}`)), pick = (fresh.length ? fresh : v)[Math.floor(Math.random() * (fresh.length || v.length))];
+    let q;
+    if (pick === 'year') {
+      const near = shuffle([-4, -3, -2, 2, 3, 4]).map(d => s.y + d).filter(y => y <= 2020).slice(0, 3);
+      const opts = shuffle([s.y, ...near].map(String));
+      q = { type: 'music', cat: 'spotify', text: 'Vilket år kom låten? 🎧', opts, correct: opts.indexOf(String(s.y)) };
+    } else if (pick === 'album') {
+      const opts = shuffle([s.alb, ...shuffle(TPAC_ALBUMS.filter(a => a !== s.alb)).slice(0, 3)]);
+      q = { type: 'music', cat: 'spotify', text: 'Från vilket album kommer låten? 🎧', opts, correct: opts.indexOf(s.alb) };
+    } else {
+      const m = musicQuestion({ ...s, y: null }, '1', songs);
+      if (!m) return null;
+      // musicQuestion väljer själv titel eller artist – styr om till den variant vi ville ha
+      if ((pick === 'title') !== /heter låten/.test(m.text)) {
+        const key = pick === 'title' ? 't' : 'ar', seen = new Set([String(s[key]).toLowerCase()]), wrong = [];
+        for (const x of shuffle(songs)) { const val = String(x[key]); if (!seen.has(val.toLowerCase())) { seen.add(val.toLowerCase()); wrong.push(val); } if (wrong.length === 3) break; }
+        const opts = shuffle([s[key], ...wrong]);
+        q = { type: 'music', cat: 'spotify', text: pick === 'title' ? 'Vad heter låten? 🎧' : 'Vem sjunger eller spelar låten? 🎧', opts, correct: opts.indexOf(s[key]) };
+      } else q = m;
+    }
+    if (!q || q.opts.length < 2 || q.correct < 0) return null;
+    return { ...q, id: `sp:${s.id}:${pick}`, track: { id: s.id, t: s.t, ar: s.ar, y: s.yok ? s.y : null }, band: null, time: autoTime('music', 'f', 'auto') };
+  };
+  // Ordning: oanvända först; bland dem kommer kändare låtar (lägre rank) oftare
+  const order = list => list.map(x => ({ x, k: (x.fresh ? 0 : 1e6) - Math.log(Math.random() || 1e-9) * (1 + (x.rank || 0) / 40) })).sort((a, b) => a.k - b.k).map(z => z.x);
+  const songC = order(songs.map(s => ({ s, rank: s.rank, fresh: !['artist', 'title', 'year', 'album'].every(v => used.has(`sp:${s.id}:${v}`)) })));
+  const facts = BANK.filter(q => q.tema === id);
+  const factC = order(facts.map(q => ({ q, rank: 0, fresh: !used.has(hash(QK_KEY(q))) })));
+  const nFact = Math.min(factC.length, songC.length ? Math.round(count * 0.4) : count);
+  const picked = [...factC.slice(0, nFact).map(x => bankToRuntime(x.q, o))];
+  for (const c of songC) { if (picked.length >= count) break; const q = songQ(c.s); if (q) picked.push(q); }
+  for (const c of factC.slice(nFact)) { if (picked.length >= count) break; picked.push(bankToRuntime(c.q, o)); }
+  // Blanda men undvik för många musikfrågor eller faktafrågor i rad
+  let qs = shuffle(picked);
+  for (let i = 2; i < qs.length; i++) {
+    const m = x => x.type === 'music';
+    if (m(qs[i]) === m(qs[i - 1]) && m(qs[i]) === m(qs[i - 2])) { const j = qs.findIndex((x, k) => k > i && m(x) !== m(qs[i])); if (j > 0) [qs[i], qs[j]] = [qs[j], qs[i]]; }
+  }
+  store.set('used', [...used, ...qs.map(q => q.id)].slice(-4000));
+  return { title: `${th.e} ${th.n}`, questions: qs, age: 'f', gen: { theme: id, count } };
+}
+function ensureThemeSongs() {
+  if (window.QK_THEME_SONGS) return Promise.resolve();
+  return new Promise(res => { const sc = document.createElement('script'); sc.src = 'tema-songs.js'; sc.onload = sc.onerror = () => res(); document.body.appendChild(sc); });
 }
 function countMatching(o) {
   const cats = (o.cats && o.cats.length) ? o.cats : Object.keys(CATS).filter(c => c !== 'spotify');
@@ -833,7 +913,10 @@ function renderSetup(tab = 'gen', mode = setupMode) {
     </div>
     <div class="setup-go"><span class="match">${n} frågor matchar${s.cats.includes('spotify') ? ' (inkl. musikfrågor)' : ''}${n && n < s.count ? ` – quizet blir ${n} frågor` : ''}</span><button class="btn primary big" id="createBtn" ${n ? '' : 'disabled'}>${solo ? 'Starta ▶' : keep ? 'Byt till det här quizet ▶' : 'Skapa spelrum ▶'}</button></div>`;
   } else if (tab === 'pre') {
-    body = `<div class="presets">${PRESETS.map(p => `<button class="preset" data-pre="${p.id}"><span class="pe">${p.e}</span><b>${esc(p.n)}</b><small>${esc(p.d)}</small><span class="pmeta">${p.o.count} frågor</span></button>`).join('')}</div>`;
+    body = `<div class="presets">${PRESETS.map(p => `<button class="preset" data-pre="${p.id}"><span class="pe">${p.e}</span><b>${esc(p.n)}</b><small>${esc(p.d)}</small><span class="pmeta">${p.o.count} frågor</span></button>`).join('')}</div>
+      <h3 class="pre-head">🎵 Musikquiz med tema</h3>
+      <p class="muted small pre-sub">${THEME_COUNT} frågor per omgång – nya frågor varje gång tills alla har kommit.</p>
+      <div class="presets">${THEMES.map(t => { const c = themeCount(t.id); return `<button class="preset theme" data-theme="${t.id}"><span class="pe">${t.e}</span><b>${esc(t.n)}</b><small>${esc(t.d)}</small><span class="pmeta">${THEME_COUNT} frågor${c.songs ? ` · ${fmt(c.total)} i potten` : ''}</span></button>`; }).join('')}</div>`;
   } else {
     const mine = store.get('myquizzes', []);
     body = mine.length ? `<div class="presets">${mine.map(q => `<button class="preset" data-mine="${q.id}"><span class="pe">📝</span><b>${esc(q.title || 'Namnlöst quiz')}</b><small>${q.qs.length} frågor${q.qs.some(x => x.type === 'music') ? ' · med musik' : ''}</small></button>`).join('')}</div>
@@ -853,6 +936,7 @@ function renderSetup(tab = 'gen', mode = setupMode) {
   $('#noCats') && ($('#noCats').onclick = () => { s.cats = []; save(); });
   $('#createBtn') && ($('#createBtn').onclick = () => { if (!s.cats.length) { toast('Välj minst en kategori'); return; } go(buildQuiz({ ...s })); });
   $$('[data-pre]').forEach(b => b.onclick = () => { const p = PRESETS.find(x => x.id === b.dataset.pre); go(buildQuiz({ ...p.o }), p.tts ? { tts: true } : {}); });
+  $$('[data-theme]').forEach(b => b.onclick = async () => { b.disabled = true; await ensureThemeSongs(); go(buildThemeQuiz(b.dataset.theme)); });
   $$('[data-mine]').forEach(b => b.onclick = () => { const q = store.get('myquizzes', []).find(x => x.id === b.dataset.mine); if (!q || !q.qs.length) { toast('Quizet är tomt'); return; } go(customToRuntime(q)); });
   $('#toEditor') && ($('#toEditor').onclick = () => Editor.list());
 }
@@ -1597,6 +1681,7 @@ if ('speechSynthesis' in window) { try { speechSynthesis.getVoices(); speechSynt
 $('#reconnLeave').onclick = () => { Player.leave(); clearPinParam(); renderHome(); };
 function loadSongDb() {
   if (window.QK_SONGS_DB || loadSongDb.started) return; loadSongDb.started = true;
+  ensureThemeSongs().then(() => { if ($('[data-theme]')) renderSetup('pre', setupMode); });
   const s = document.createElement('script'); s.src = 'songs-db.js'; s.async = true;
   s.onload = () => {
     const raw = window.QK_SONGS_DB || '', have = new Set(SONGS.map(x => x.id)), seen = new Set(SONGS.map(x => (x.t + '|' + x.ar).toLowerCase()));

@@ -37,6 +37,11 @@ Utöver vanliga frågor (4 alternativ, sant/falskt och musik) finns tre egna kat
 
 Färdiga quiz: *Kartquiz*, *Gissa personen*, *Närmast vinner* och *Kahoot-mix* (alla typer blandade).
 
+## Musikquiz med tema
+Under *Färdiga quiz* finns musikquiz med tema: **Hiphop, 90-talet, 00-talet, Albansk musik, 2Pac och Julmusik**. Varje omgång har 50 frågor – låtar att lyssna på (gissa artist, titel, år eller album) blandat med faktafrågor och "närmast rätt"-årtal. Varje tema har en större pott (från cirka 70 frågor för 2Pac till 900 för hiphop), och appen tar frågor som inte har spelats än först, så det blir nya frågor varje gång man startar. Kända låtar kommer oftare än okända.
+
+Låtarna väljs ur Spotify-datasetet (`tema-songs.js`, laddas bara på storskärmen), faktafrågorna finns i `bank-musiktema.js`. Albansk musik bygger på artister med albanskt ursprung som finns på Spotify (Dua Lipa, Ava Max, Bebe Rexha, Rita Ora, Era Istrefi, GASHI, Loredana m.fl.) plus frågor om Eurovision, Festivali i Këngës och folkmusik.
+
 ## Musikfrågor (Spotify)
 Det finns två sätt att spela musiken:
 - **På den här skärmen**: Spotifys spelare bäddas in på storskärmen, med titel och omslag suddade tills svaret visas. Utan inloggning spelas ett klipp på 30 sekunder, vilket räcker för en fråga. Om ingen musik hörs, tryck på ▶ i spelaren eller på *Öppna i Spotify*.
