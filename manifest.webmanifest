@@ -20,6 +20,7 @@
     { "name": "Paf!", "url": "./paf.html" },
     { "name": "Block", "url": "./block.html" },
     { "name": "Tornet", "url": "./torn.html" },
-    { "name": "Backracet", "url": "./hill.html" }
+    { "name": "Backracet", "url": "./hill.html" },
+    { "name": "Förrådsfejden", "url": "./forrad.html" }
   ]
 }

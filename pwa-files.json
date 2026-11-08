@@ -1,5 +1,5 @@
 {
- "version": "f764ba34caa0",
+ "version": "e3d6e4d280c2",
  "files": [
   "./",
   "avatars/1.jpg",
@@ -36,6 +36,12 @@
   "box/app.js",
   "box/sim.js",
   "fonts/fredoka.woff2",
+  "forrad.html",
+  "forrad/app.js",
+  "forrad/data.js",
+  "forrad/game.js",
+  "forrad/three.min.js",
+  "forrad/v3.js",
   "fyra.html",
   "fyra/ai.js",
   "fyra/app.js",

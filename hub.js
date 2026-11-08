@@ -30,8 +30,10 @@ const GAMES = [
     stat: () => { const s = makeStore('bo').get('stats', null); return s && s.wins ? `🏆 ${s.wins} matcher vunna` : ''; } },
   { id: 'sort', title: 'Trolldrycker', sub: 'Häll och sortera de magiska färgerna – en färg per flaska', icon: '🧪', c: '#9B5BFF', d: '#6430C9',
     stat: () => { const p = makeStore('bm').get('prog', {}) || {}; const m = Math.max(1, ...Object.values(p).map(v => v && v.lvl | 0)); return m > 1 ? `🧪 nivå ${m}` : ''; } },
-  { id: 'prop', title: 'Kurragömma', sub: 'Förvandla dig till en sak i huset – eller leta efter de andra', icon: '🫥', c: '#34A853', d: '#1E7A36', isNew: true,
-    stat: () => { const s = makeStore('bq').get('stats', null); return s && s.catches ? `🔎 ${s.catches} hittade` : ''; } }
+  { id: 'prop', title: 'Kurragömma', sub: 'Förvandla dig till en sak i huset – eller leta efter de andra', icon: '🫥', c: '#34A853', d: '#1E7A36',
+    stat: () => { const s = makeStore('bq').get('stats', null); return s && s.catches ? `🔎 ${s.catches} hittade` : ''; } },
+  { id: 'forrad', title: 'Förrådsfejden', sub: 'Buda på förråd och gräv fram skatterna – mot familjen', icon: '📦', c: '#E2711D', d: '#A84F0E', isNew: true,
+    stat: () => { const s = makeStore('bl').get('stats', null); return s && s.wins ? `🏆 ${s.wins} vinster` : s && s.best ? `💰 Bästa affär ${fmtN(s.best)} kr` : ''; } }
 ];
 
 let current = 'hub';

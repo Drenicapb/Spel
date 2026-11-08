@@ -1,0 +1,222 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Bucinca Förrådsfejden</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="apple-touch-icon" href="icons/apple-touch-icon.png">
+<link rel="icon" href="icons/favicon.png">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Bucinca">
+<meta name="theme-color" content="#7A3E12">
+<link rel="stylesheet" href="shared/style.css">
+<style>
+body{background:linear-gradient(170deg,#FFD08A 0%,#FF9A4D 40%,#A8521A 100%)}
+.hidden{display:none!important}
+.me{display:flex;align-items:center;gap:12px;background:var(--card);border-radius:22px;padding:8px 14px;box-shadow:0 5px 0 #C9C3E8}
+.me .av{width:58px}
+.me b{font-size:19px}
+.me small{display:block;color:var(--muted)}
+.chip{display:inline-flex;align-items:center;gap:4px;background:#2B2350;color:#FFD23F;border-radius:10px;padding:2px 9px;font-weight:700;font-size:14px;white-space:nowrap}
+@media (min-aspect-ratio:5/4) and (max-height:600px){
+  #menu{flex-direction:row;gap:26px}
+  #menu .logo .l1{font-size:42px}#menu .logo .l2{font-size:34px}
+  #menu .menu .btn{padding:9px 18px}
+}
+#menu .menu{gap:10px}
+.row2{display:flex;gap:10px;flex-wrap:wrap;justify-content:center}
+.row2 .btn{min-width:0;flex:1}
+.wrap{width:min(96vw,1000px);display:flex;flex-direction:column;gap:12px;margin-top:64px;padding-bottom:20px}
+.card{background:var(--card);border-radius:22px;padding:12px 14px;box-shadow:0 5px 0 #C9C3E8;display:flex;flex-direction:column;gap:8px}
+.card h4{margin:0;font-size:18px}
+.note{color:var(--muted);font-size:15px;margin:0;line-height:1.35}
+.opts{display:flex;flex-direction:column;gap:10px}
+.opt{display:flex;align-items:center;gap:8px;flex-wrap:wrap}
+.opt b{min-width:120px}
+.seg{display:flex;gap:6px;flex-wrap:wrap}
+.seg button{padding:6px 12px;border-radius:12px;background:#F0EDFF;font-weight:700;font-size:15px}
+.seg button.on{background:#2B2350;color:#fff}
+.gar{display:flex;flex-direction:column;gap:12px}
+@media (min-aspect-ratio:5/4){.gar{display:grid;grid-template-columns:1fr 1fr;gap:12px;align-items:start}}
+.figsel{display:grid;grid-template-columns:repeat(auto-fill,minmax(74px,1fr));gap:8px}
+.figsel button{background:#F6F4FF;border-radius:16px;padding:6px 4px;display:flex;flex-direction:column;align-items:center;gap:2px;font-weight:600;font-size:13px;opacity:.55}
+.figsel button .av{width:50px;border-width:3px}
+.figsel button.on{opacity:1;box-shadow:0 0 0 3px #34C759;background:#EFFFF2}
+/* lobby */
+.plist{display:flex;flex-direction:column;gap:8px}
+.pl{display:flex;align-items:center;gap:10px;background:#F6F4FF;border-radius:16px;padding:6px 10px;font-weight:600}
+.pl .av{width:42px;border-width:3px}
+.pl span{flex:1;min-width:0;overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
+.pl.mine{box-shadow:0 0 0 3px #FFD23F}
+.joininfo{display:flex;gap:12px;align-items:center}
+.qr{background:#fff;border-radius:14px;padding:6px;flex:none;line-height:0}
+.qr svg{width:min(34vw,150px);height:auto}
+.url{font-weight:700;font-size:clamp(17px,4.2vmin,24px);white-space:nowrap}
+.ipbox{display:flex;gap:8px}
+.ipbox input{flex:1;min-width:0;font:inherit;font-size:20px;font-weight:600;border:3px solid #E4E0F7;border-radius:14px;padding:8px 12px;color:var(--ink);-webkit-user-select:text;user-select:text}
+.found{display:flex;flex-direction:column;gap:10px}
+.found .btn{min-width:0;width:100%}
+.spin{display:inline-block;animation:spin2 1s linear infinite}
+@keyframes spin2{to{transform:rotate(360deg)}}
+
+/* spelet */
+#play{justify-content:flex-start}
+.ptop{position:absolute;top:var(--safe-t);left:var(--safe-l);right:var(--safe-r);display:flex;align-items:center;gap:10px;z-index:5}
+.ptop h2{flex:1;font-size:clamp(20px,5vmin,30px);text-align:left;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.mycash{background:#2B2350;color:#FFD23F;border-radius:16px;padding:6px 12px;font-weight:700;font-size:clamp(15px,4vmin,20px);white-space:nowrap;box-shadow:0 4px 0 #0004}
+.pwrap{width:min(96vw,1180px);margin-top:62px;display:grid;gap:12px;padding-bottom:20px;align-items:start}
+@media (min-aspect-ratio:5/4){.pwrap{grid-template-columns:1.2fr 1fr}.pwrap .stage{position:sticky;top:0}}
+.pwrap:has(.stage.off){grid-template-columns:1fr;max-width:720px}
+.stage{position:relative;border-radius:22px;overflow:hidden;background:#0d0c0b;aspect-ratio:4/3;box-shadow:0 6px 0 #5a2a08,0 10px 20px #0003;width:100%}
+.stage.short{aspect-ratio:2/1}
+@media (min-aspect-ratio:5/4){.stage.short{aspect-ratio:4/3}}
+.stage canvas{display:block;width:100%;height:100%;touch-action:none}
+.stage .hint3{position:absolute;left:10px;bottom:8px;font-size:12px;color:#fffc;background:#0008;padding:3px 9px;border-radius:9px;pointer-events:none}
+.stage.off{display:none}
+.flat{position:absolute;inset:0;padding:10px;display:grid;grid-template-columns:repeat(auto-fill,minmax(80px,1fr));gap:6px;align-content:start;overflow:auto}
+.flat div{background:#2d261f;border-radius:10px;color:#f4ede4;text-align:center;padding:6px 4px;font-size:11px}
+.flat div b{display:block;font-size:30px}
+.pnl{display:flex;flex-direction:column;gap:12px;min-width:0}
+.th{display:flex;align-items:center;gap:10px}
+.th .ic{font-size:34px}
+.th .av{width:50px;border-width:3px}
+.th b{font-size:20px;line-height:1.1}
+.th small{display:block;color:var(--muted);font-size:14px}
+.pbar{height:12px;background:#E4E0F7;border-radius:6px;overflow:hidden}
+.pbar i{display:block;height:100%;background:linear-gradient(90deg,#FFD23F,#FF8A3D);width:100%}
+.chips{display:flex;flex-wrap:wrap;gap:6px}
+.ichip{background:#F6F4FF;border-radius:20px;padding:4px 10px;font-size:14px;font-weight:600}
+.ichip.mut{color:var(--muted)}
+.bidbox{text-align:center;align-items:center;gap:2px}
+.bidbox .lab{color:var(--muted);font-weight:600;font-size:14px}
+.bidamt{font-size:clamp(48px,14vmin,76px);font-weight:700;line-height:1;letter-spacing:-1px}
+.bidamt.pop{animation:pop .25s}
+@keyframes pop{50%{transform:scale(1.12)}}
+.lead{display:flex;align-items:center;gap:8px;font-weight:700;font-size:18px;min-height:36px}
+.lead .av{width:34px;border-width:3px}
+.tbar{height:12px;background:#E4E0F7;border-radius:6px;overflow:hidden;width:100%;margin-top:6px}
+.tbar i{display:block;height:100%;background:#FF8A3D;width:100%}
+.call{font-size:clamp(24px,7vmin,34px);font-weight:700;min-height:40px;margin-top:4px}
+.call.sold{color:#E2711D;font-size:clamp(40px,12vmin,60px);animation:pop .4s}
+.prow{display:flex;flex-wrap:wrap;gap:6px}
+.pc{flex:1;min-width:120px;display:flex;align-items:center;gap:6px;background:var(--card);border-radius:16px;padding:5px 8px;box-shadow:0 4px 0 #C9C3E8;font-size:13px;font-weight:600;border:3px solid transparent}
+.pc .av{width:32px;border-width:2px}
+.pc span{flex:1;min-width:0;line-height:1.15}
+.pc span b{display:block;font-size:14px;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+.pc.lead{border-color:var(--c);box-shadow:0 4px 0 var(--d),0 0 16px -2px var(--c)}
+.pc.out{opacity:.45}
+.zones{display:grid;gap:10px;grid-template-columns:repeat(var(--cols),1fr)}
+.zone{border-radius:22px;padding:12px 8px;min-height:120px;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:2px;color:#fff;background:var(--c);box-shadow:0 7px 0 var(--d);
+  user-select:none;touch-action:manipulation;cursor:pointer;transition:transform .07s,filter .2s;text-align:center}
+.zone:active{transform:translateY(5px);box-shadow:0 2px 0 var(--d)}
+.zone .av{width:46px;border-width:3px;border-color:#fff}
+.zone .zn{font-weight:700;font-size:16px;text-shadow:0 2px 0 #0003}
+.zone .zb{font-weight:700;font-size:clamp(22px,6.5vmin,32px);line-height:1;text-shadow:0 2px 0 #0003}
+.zone .zc{font-size:13px;font-weight:600;opacity:.9}
+.zone.lead{box-shadow:0 0 0 4px #FFD23F,0 7px 0 var(--d)}
+.zone.off{filter:grayscale(.85) brightness(.75)}
+.log{font-size:13px;color:var(--muted);display:flex;flex-direction:column;gap:1px}
+.tally{display:grid;grid-template-columns:repeat(3,1fr);gap:6px;text-align:center}
+.tally span{display:block;font-size:12px;color:var(--muted)}
+.tally b{font-size:clamp(15px,4.4vmin,20px)}
+.rgrid{display:grid;grid-template-columns:repeat(auto-fill,minmax(96px,1fr));gap:8px}
+.rc{background:#F6F4FF;border-radius:16px;padding:8px 4px;text-align:center;display:flex;flex-direction:column;align-items:center;gap:2px;min-height:100px;justify-content:center;border:3px solid transparent}
+.rc .em{font-size:32px;line-height:1.1}
+.rc .nm{font-size:12px;line-height:1.15;font-weight:600}
+.rc.closed{background:repeating-linear-gradient(135deg,#F0E2CF 0 8px,#E9D7BF 8px 16px);cursor:pointer}
+.rc.closed .hint{font-size:11px;color:#D9621A;font-weight:700}
+.rc.flip{animation:flip .35s}
+@keyframes flip{0%{transform:rotateY(90deg)}100%{transform:rotateY(0)}}
+.rc.jc{border-color:#FFD23F;box-shadow:0 0 16px -2px #FFB800}
+.val{font-weight:700;font-size:15px}
+.appr{padding:5px 8px;font-size:12px;border-radius:10px;margin-top:2px;background:#8B7BFF;color:#fff;font-weight:700;box-shadow:0 3px 0 #6252D9}
+.tag{font-size:11px;font-weight:700}
+.shake{animation:shake .5s infinite}
+@keyframes shake{25%{transform:rotate(-3deg)}75%{transform:rotate(3deg)}}
+.junk{color:#9a8f86}.lo{color:var(--ink)}.mid{color:#2373C9}.hi{color:#1F9A40}.jack{color:#C98F00}.bad{color:#E5333A}.good{color:#1F9A40}.q{color:#6252D9}
+.result{font-size:clamp(46px,14vmin,70px);font-weight:700;line-height:1;text-align:center}
+.lines div{display:flex;justify-content:space-between;padding:5px 0;border-bottom:1px solid #E4E0F7;font-weight:600}
+.lines div:last-child{border:0}
+.ilist{display:flex;flex-direction:column}
+.ilist div{display:flex;justify-content:space-between;gap:10px;padding:4px 0;font-size:14px;border-bottom:1px dashed #E4E0F7}
+.ilist small{color:var(--muted)}
+.srow{display:grid;grid-template-columns:24px 36px 1fr auto;gap:8px;align-items:center;padding:5px 0}
+.srow .av{width:36px;border-width:2px}
+.srow .rk{font-weight:700;font-size:20px;color:var(--muted);text-align:center}
+.srow .bar{height:8px;border-radius:5px;margin-top:3px;background:var(--c)}
+.srow .cash{font-weight:700;text-align:right;white-space:nowrap}
+.srow small{display:block;text-align:right;font-weight:600}
+.srow.mine{background:#FFF8D6;border-radius:12px}
+.wait{text-align:center;font-weight:600;color:var(--muted)}
+.bigbtn{width:100%;min-width:0}
+.av.mini{width:96px}
+</style>
+</head>
+<body>
+<div id="bg"></div>
+
+<section id="menu" class="screen on">
+  <div class="logo" id="logo"></div>
+  <div style="display:flex;flex-direction:column;align-items:center;gap:10px">
+    <button class="me" id="meCard"></button>
+    <div class="menu">
+      <button class="btn green" id="toQuick">📦 Spela här (samma skärm)</button>
+      <div class="row2">
+        <button class="btn small hidden" id="toHost">📡 Starta nätverksmatch</button>
+        <button class="btn blue small" id="toOnline">🌍 Starta internetmatch</button>
+        <button class="btn white small" id="toJoin">🔗 Gå med</button>
+      </div>
+      <div class="row2">
+        <button class="btn white small" id="toHelp">❓ Så spelar man</button>
+        <button class="btn white small" id="toHub">🏠 Alla spel</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<section id="meScr" class="screen scroll">
+  <div class="topbar"><button class="ibtn" id="meBack">⬅️</button><span></span></div>
+  <h2 style="margin-top:58px" id="meTitle">Vem spelar?</h2>
+  <div class="chars" id="chars"></div>
+</section>
+
+<section id="quick" class="screen scroll">
+  <div class="topbar"><button class="ibtn" data-back>⬅️</button><h2>Spela här 📦</h2><span style="width:48px"></span></div>
+  <div class="wrap" id="qBox" style="max-width:680px"></div>
+</section>
+
+<section id="join" class="screen scroll">
+  <div class="topbar"><button class="ibtn" data-back>⬅️</button><h2>Gå med 🔗</h2><span style="width:48px"></span></div>
+  <div class="wrap" id="joinBox" style="max-width:560px"></div>
+</section>
+
+<section id="lobby" class="screen scroll">
+  <div class="topbar"><button class="ibtn" id="lobbyBack">⬅️</button><h2>Auktionshallen 🔨</h2><span style="width:48px"></span></div>
+  <div class="wrap" id="lobbyBox"></div>
+</section>
+
+<section id="play" class="screen scroll">
+  <div class="ptop"><button class="ibtn" id="pBack">⏸️</button><h2 id="pTitle">Förråd 1</h2><span class="mycash hidden" id="myCash"></span></div>
+  <div class="pwrap">
+    <div class="stage" id="stage"><div class="hint3" id="hint3">Dra för att titta runt · tryck på en sak</div></div>
+    <div class="pnl" id="pnl"></div>
+  </div>
+</section>
+
+<div class="overlay" id="overlay"><div class="panel" id="panel"></div></div>
+<div id="party"></div>
+<canvas id="confetti"></canvas>
+
+<script src="shared/core.js"></script>
+<script src="shared/net.js"></script>
+<script src="boll/qrcode.js"></script>
+<script src="forrad/three.min.js"></script>
+<script src="forrad/data.js"></script>
+<script src="forrad/v3.js"></script>
+<script src="forrad/game.js"></script>
+<script src="forrad/app.js"></script>
+</body>
+</html>

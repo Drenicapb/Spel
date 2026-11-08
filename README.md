@@ -2,6 +2,8 @@
 
 Webbversionen av Bucinca Spel – 4 i rad, Schack, Paf!, Block, Tornet och Backracet med Leah, Leon, Patriot och Hanna.
 
+Nytt: **Förrådsfejden** – buda på förråd i 3D mot familjen (samma skärm, wifi eller internet) och gräv fram skatterna: https://drenicapb.github.io/Spel/forrad.html
+
 Spela: **https://drenicapb.github.io/Spel/**
 
 På iPhone/iPad: öppna länken i Safari → Dela → *Lägg till på hemskärmen*. Fungerar även offline efter första besöket.

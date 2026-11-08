@@ -98,7 +98,7 @@ function hsAdd(k, n) {
 
 /* ---------- navigering mellan spelen ---------- */
 function goHub() { location.href = 'index.html'; }
-/* nätverksmatcher annonseras med prefix (krock:, studs:, box:) – fotboll utan – så att "Gå med" öppnar rätt spel */
+/* nätverksmatcher annonseras med prefix (krock:, studs:, box:, forrad:) – fotboll utan – så att "Gå med" öppnar rätt spel */
 function netGameOf(name) {
   name = String(name || '');
   if (/^krock:/.test(name)) return { page: 'krock.html', label: '💥 ' + name.slice(6) };
@@ -108,6 +108,7 @@ function netGameOf(name) {
   if (/^ops:/.test(name)) return { page: 'ops.html', label: '🎯 ' + name.slice(4) };
   if (/^prop:/.test(name)) return { page: 'prop.html', label: '🫥 ' + name.slice(5) };
   if (/^fyra:/.test(name)) return { page: 'fyra.html', label: '🔴 ' + name.slice(5) };
+  if (/^forrad:/.test(name)) return { page: 'forrad.html', label: '📦 ' + name.slice(7) };
   return { page: 'boll.html', label: '⚽ ' + name.replace(/^boll:/, '') };
 }
 
