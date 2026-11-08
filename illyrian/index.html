@@ -2560,6 +2560,7 @@ function edBegin(scen) { newGame(0, 1, 0.5, scen || 'std', 0); S.edit = 1; retur
 function edFixCap(c) { const cs = S.c[c]; if (!OWN[c].length) { cs.alive = false; cs.cap = -1; return; } cs.alive = true; if (cs.cap < 0 || !S.d[cs.cap] || S.d[cs.cap].o !== c) cs.cap = OWN[c].find(j => DIS[j].cap) ?? OWN[c][0]; }
 function edOwner(i, c) {
   const d = S.d[i], old = d.o; if (old === c && d.core === c) return false;
+  if (S.edit !== 1 && old !== c && OWN[old].length <= 1 && isH(old)) return false;
   setOwner(i, c); d.core = c; d.ct = 100; d.ig = 0; d.u = 0;
   edFixCap(old); edFixCap(c); d.h = happyTarget(i); seaTouch(); return true;
 }
@@ -2584,6 +2585,22 @@ function edRel(a, b, kind) {
   if (kind === 'war') { t.al = 0; t.na = 0; t.tr = 0; setRel(a, b, -80); if (!t.w) { t.w = S.turn; t.ws = 0; S.wars.add(pk(a, b)); } }
   else { if (t.w) endWar(a, b, true); t.tc = 0; if (kind === 'ally') { t.al = 1; t.na = 1; t.tr = 1; setRel(a, b, 70); } else { t.al = 0; t.na = 0; setRel(a, b, 0); } }
   seaTouch(); return true;
+}
+/* Editorn i ett pågående spel: ögonblicksbild för "Ångra allt", och städning + loggrad när man är klar */
+function edSnapshot() { return serialize(); }
+function edRestore(str) {
+  try { const o = JSON.parse(str); o.wars = new Set(o.wars); const keep = { mp: S.mp, slot: S.slot }; S = o; if (keep.mp) S.mp = keep.mp; S.slot = keep.slot; migrate(); rebuildOwn(); seaCache.clear(); seaTouch(); refreshBlockade(); refreshRes(); return true; } catch (e) { return false; }
+}
+function edFinish(c, changed) {
+  rebuildOwn();
+  for (let k = 0; k < NC; k++) {
+    edFixCap(k); const cs = S.c[k];
+    if (!cs.alive) for (let o = 0; o < NC; o++) if (o !== k) { const t = S.tr[pk(k, o)]; if (t) { t.w = 0; t.al = 0; t.na = 0; t.tr = 0; } S.wars.delete(pk(k, o)); }
+    if (cs.lord >= 0 && !S.c[cs.lord].alive) cs.lord = -1;
+  }
+  seaCache.clear(); seaTouch(); refreshBlockade(); refreshRes();
+  if (changed) log(`🛠️ ${flagOf(c)} ${cname(c)} ändrade världen med editorn.`, 1, humans());
+  return true;
 }
 function worldsList() { try { return JSON.parse(localStorage.getItem(WKEY) || '[]'); } catch (e) { return []; } }
 function edSave(name, id) {
@@ -2615,7 +2632,7 @@ function edPlay(player, diff, goal, slot, name) {
   return true;
 }
 window.G = {
-  edBegin, edOwner, edGiveAll, edCap, edTroops, edRes, edCountry, relKind, edRel, worldsList, edSave, edLoad, edDelete, edPlay,
+  edBegin, edOwner, edGiveAll, edCap, edTroops, edRes, edCountry, relKind, edRel, worldsList, edSave, edLoad, edDelete, edPlay, edSnapshot, edRestore, edFinish,
   rsList, hasRs, canProspect, prospect, prospectCost, PROS_CHANCE,
   M, DIS, CTR, ND, NC, TECH, TK, BLD, BMAX, PERS, RANGE, TREATY_N, NUKE_COST,
   get S() { return S; }, set REPORT(v) { REPORT = v; }, get OWN() { return OWN; }, get REPORT() { return REPORT; }, get PENDING() { return PENDING; }, set PENDING(v) { PENDING = v; },
@@ -2643,7 +2660,7 @@ window.G = {
 };
 /* nätverksspel: blockera drag när det inte är din tur */
 (function () {
-  const MUT = 'prospect threatSpy unPropose2 upgrade upgradeN recruit research research_ moveTroops battle battleMulti declareWar endWar nuke buildNuke executeDeal proposeDeal sendGift cancelTreaty buyAir airStrike airDrop buyMarket cancelOil setEmbargo setGov buildWonder hireGen moveGen fireGen startCI spy applyEvent hireLobby releaseMany releaseDistrict marchOrder cancelOrder bombard moveAir moveForce buildICBM launchNuke buyShips moveFleet makeVassal annexVassal freeVassal setPolicy applyElection endTurn signOil'.split(' ');
+  const MUT = 'edOwner edGiveAll edCap edTroops edRes edCountry edRel edRestore edFinish prospect threatSpy unPropose2 upgrade upgradeN recruit research research_ moveTroops battle battleMulti declareWar endWar nuke buildNuke executeDeal proposeDeal sendGift cancelTreaty buyAir airStrike airDrop buyMarket cancelOil setEmbargo setGov buildWonder hireGen moveGen fireGen startCI spy applyEvent hireLobby releaseMany releaseDistrict marchOrder cancelOrder bombard moveAir moveForce buildICBM launchNuke buyShips moveFleet makeVassal annexVassal freeVassal setPolicy applyElection endTurn signOil'.split(' ');
   for (const k of MUT) { const f = G[k]; if (typeof f !== 'function') continue; G[k] = function (...a) { if (mpLocked()) { try { if (G.onLocked) G.onLocked(k); } catch (e) { } return k === 'proposeDeal' ? { ok: false, ev: { v: -999 } } : null; } return f.apply(this, a); }; }
 })();
 </script>
@@ -4612,7 +4629,7 @@ window.NET = (function () {
   function panelMenu(P) {
     const s = S();
     P.innerHTML = head('☰ Meny', `${['Lätt', 'Normal', 'Svår'][s.diff]} · mål ${Math.round(s.goal * 100)}% av världen`) + `<div class="sh-body"><div class="btns" style="flex-direction:column">
-      <button class="btn" id="m-log">📜 Händelselogg</button><button class="btn" id="m-won">🏛️ Underverk</button><button class="btn" id="m-un">🇺🇳 FN-förslag</button><button class="btn" id="m-cult">🎭 Kultur &amp; lobbyister</button><button class="btn" id="m-gov">🏛️ Regering</button><button class="btn" id="m-rank">🏆 Topplista</button><button class="btn" id="m-stats">📈 Statistik</button><button class="btn" id="m-miss">🎯 Uppdrag</button><button class="btn" id="m-save">💾 Spara spelet</button><button class="btn" id="m-help">❓ Hur spelar man?</button><button class="btn" id="m-home">🏠 Startskärmen</button><button class="btn" id="m-new">🆕 Nytt spel</button></div>
+      <button class="btn" id="m-log">📜 Händelselogg</button><button class="btn" id="m-won">🏛️ Underverk</button><button class="btn" id="m-un">🇺🇳 FN-förslag</button><button class="btn" id="m-ed">🛠️ Redigera världen</button><button class="btn" id="m-cult">🎭 Kultur &amp; lobbyister</button><button class="btn" id="m-gov">🏛️ Regering</button><button class="btn" id="m-rank">🏆 Topplista</button><button class="btn" id="m-stats">📈 Statistik</button><button class="btn" id="m-miss">🎯 Uppdrag</button><button class="btn" id="m-save">💾 Spara spelet</button><button class="btn" id="m-help">❓ Hur spelar man?</button><button class="btn" id="m-home">🏠 Startskärmen</button><button class="btn" id="m-new">🆕 Nytt spel</button></div>
       <div class="sect">Inställningar</div>
       <label class="tog"><span>🔊 Ljudeffekter</span><input type="checkbox" data-opt="sound" ${FX.OPT.sound ? 'checked' : ''}></label>
       <label class="tog"><span>🌗 Dag och natt med stadsljus</span><input type="checkbox" data-opt="night" ${FX.OPT.night !== false ? 'checked' : ''}></label>
@@ -4623,6 +4640,7 @@ window.NET = (function () {
       <div class="sect">Version</div><div class="row"><span class="grow tiny muted">Illyrian Domination ${window.ILLYRIAN_VER || ''}${window.IllyrianApp ? ' · app' : ''}</span><button class="btn sm" id="m-upd">🔄 Sök efter uppdatering</button></div>${!window.IllyrianApp && /Android/i.test(navigator.userAgent) ? '<div class="btns" style="margin-top:8px"><a class="btn" href="../app/IllyrianDomination.apk" download>📲 Ladda ner Android-appen</a></div>' : ''}</div>`;
     P.querySelector('#m-save').onclick = () => { const ok = g.saveGame(); toast(ok ? '💾 Sparat' : 'Kunde inte spara i den här webbläsaren', ok ? 'good' : 'bad'); };
     P.querySelector('#m-un').onclick = () => unProposeModal();
+    P.querySelector('#m-ed').onclick = () => openInGameEditor();
     P.querySelector('#m-upd').onclick = () => { if (window.illyrianUpdate) window.illyrianUpdate.check(true); };
     P.querySelector('#m-help').onclick = helpModal; P.querySelector('#m-rank').onclick = () => openPanel('rank'); P.querySelector('#m-log').onclick = () => openPanel('log'); P.querySelector('#m-won').onclick = () => wonderModal(); P.querySelector('#m-cult').onclick = () => cultureModal(); P.querySelector('#m-gov').onclick = () => govModal(); P.querySelector('#m-stats').onclick = statsModal; P.querySelector('#m-miss').onclick = missionsModal;
     P.querySelectorAll('[data-opt]').forEach(cb => cb.onchange = () => { FX.OPT[cb.dataset.opt] = cb.checked; FX.saveOpt(); FX.markDirty(); if (cb.dataset.opt === 'sound' && cb.checked) SFX.play('coin'); renderNews(); });
@@ -4968,12 +4986,12 @@ window.NET = (function () {
         r.querySelectorAll('[data-wdel]').forEach(b => b.onclick = () => { const w = W(b.dataset.wdel); confirmBox('🗑 Radera världen', `<p>Vill du radera "${esc(w.name)}"? Det går inte att ångra.</p>`, 'Radera', 'red').then(ok => { if (ok) { g.edDelete(w.id); m.close(); worldsModal(); } }); });
       } });
   }
-  function enterEditor(id, name) {
+  function enterEditor(id, name, inGame) {
     $('#start').classList.add('hidden'); $('#pick').classList.add('hidden'); document.querySelectorAll('#modals .mback').forEach(b => b.remove());
     bgMode(false); document.body.classList.add('editing');
     const alb = CTR.findIndex(c => c.a3 === 'ALB'), s = S();
-    const c0 = s.c[alb] && s.c[alb].alive ? alb : s.c.findIndex(c => c.alive);
-    UI.edit = { id, name: name || '', tool: 'paint', c: c0, amt: 5, res: 'oil', slot: 1, other: -1, capPick: false, dirty: false };
+    const c0 = inGame ? ME() : s.c[alb] && s.c[alb].alive ? alb : s.c.findIndex(c => c.alive);
+    UI.edit = { id, name: name || '', tool: 'paint', c: c0, amt: 5, res: 'oil', slot: 1, other: -1, capPick: false, dirty: false, inGame: !!inGame, snap: inGame ? g.edSnapshot() : null };
     UI.sel = -1; UI.target = null; UI.panel = null; UI.mode = 'pol';
     $('#panel').classList.add('closed'); $('#dpanel').classList.add('closed'); $('#banner').classList.add('hidden');
     document.querySelectorAll('#tools [data-m]').forEach(b => b.classList.toggle('on', b.dataset.m === UI.mode));
@@ -5003,7 +5021,10 @@ window.NET = (function () {
       <div class="seg">${Object.entries(g.PERS).map(([k, n]) => `<button data-pers="${k}" class="${cs.pers === k ? 'on' : ''}">${n}</button>`).join('')}</div>
       <div class="edrow"><button class="btn sm ${E.capPick ? 'pri' : ''}" id="ed-cap">👑 ${E.capPick ? 'Tryck på ett eget distrikt…' : 'Flytta huvudstaden'}</button><span class="tiny muted grow" style="text-align:right">${cs.alive ? `${g.OWN[c].length} distrikt · huvudstad ${cs.cap >= 0 ? esc(DIS[cs.cap].n) : '–'}` : 'Har inga distrikt'}</span></div>`;
     else if (E.tool === 'rel') { const o = E.other, k = o >= 0 ? g.relKind(c, o) : null; ctx = `<div class="edrow"><span class="tiny muted">${esc(CTR[c].n)} och</span>${chip(o, 'ed-other')}</div>${o >= 0 ? `<div class="seg">${[['ally', '🤝 Allierade'], ['peace', '🕊️ Fred'], ['war', '⚔️ Krig']].map(([kk, n]) => `<button data-rel="${kk}" class="${k === kk ? 'on' : ''}">${n}</button>`).join('')}</div>` : '<div class="edhint">Välj ett land här eller tryck på det på kartan.</div>'}`; }
-    bar.innerHTML = `<div class="edtop">${chip(c, 'ed-c')}<span class="grow"></span><button class="btn sm" id="ed-save">💾 Spara</button><button class="btn sm pri" id="ed-play">▶️ Spela</button><button class="btn sm" id="ed-x" title="Avsluta">✕</button></div>
+    const top = E.inGame
+      ? `${E.dirty ? '<button class="btn sm" id="ed-undo">↩️ Ångra allt</button>' : ''}<button class="btn sm" id="ed-save" title="Spara läget som en egen värld">💾 Som värld</button><button class="btn sm pri" id="ed-done">✔ Klar</button>`
+      : `<button class="btn sm" id="ed-save">💾 Spara</button><button class="btn sm pri" id="ed-play">▶️ Spela</button><button class="btn sm" id="ed-x" title="Avsluta">✕</button>`;
+    bar.innerHTML = `${E.inGame ? `<div class="edhint" style="color:#e0b84a">🛠️ Du redigerar ${S().mp ? 'nätverksspelet – alla ser att du använt editorn' : 'det pågående spelet'}</div>` : ''}<div class="edtop">${chip(c, 'ed-c')}<span class="grow"></span>${top}</div>
       <div class="seg edtools">${ED_TOOLS.map(([k, ic, n]) => `<button data-tool="${k}" class="${E.tool === k ? 'on' : ''}">${ic} ${n}</button>`).join('')}</div><div class="edctx">${ctx}</div>`;
     const q = x => bar.querySelector(x), all = x => bar.querySelectorAll(x);
     const changed = () => { E.dirty = true; recolor(); renderHL(); FX.markDirty(); renderEd(); };
@@ -5020,17 +5041,33 @@ window.NET = (function () {
     if (q('#ed-other')) q('#ed-other').onclick = () => countryPicker(`Relation med ${CTR[c].n}`, k => { if (k !== c) { E.other = k; renderEd(); } });
     if (q('#ed-all')) q('#ed-all').onclick = () => countryPicker(`Ge ett helt land till ${CTR[c].n}`, k => { if (k === c) return; const n = g.edGiveAll(k, c); if (n) { changed(); toast(`🗺️ ${n} distrikt från ${esc(CTR[k].n)} tillhör nu ${esc(CTR[c].n)}`, 'good'); } });
     q('#ed-save').onclick = () => edSaveDlg();
+    if (E.inGame) {
+      q('#ed-done').onclick = () => finishInGame();
+      if (q('#ed-undo')) q('#ed-undo').onclick = () => confirmBox('↩️ Ångra allt', '<p>Vill du ångra alla ändringar sedan du öppnade editorn?</p>', 'Ångra', 'red').then(ok => { if (ok && g.edRestore(E.snap)) { E.dirty = false; refresh(); FX.markDirty(); renderEd(); toast('↩️ Ändringarna är ångrade'); } });
+      return;
+    }
     q('#ed-play').onclick = () => playModal();
     q('#ed-x').onclick = () => { const leave = () => { exitEditorUI(); showStart(); }; if (!E.dirty) leave(); else confirmBox('Avsluta editorn', '<p>Du har ändringar som inte är sparade. Vill du avsluta ändå?</p>', 'Avsluta', 'red').then(ok => { if (ok) leave(); }); };
   }
   function edTap(i) {
     const E = UI.edit, s = S(); if (i < 0 || !E || E.list) return;
     const D = DIS[i];
-    if (E.tool === 'paint') { if (g.edOwner(i, E.c)) { E.dirty = true; SFX.play('click'); recolor(); FX.markDirty(); } }
-    else if (E.tool === 'troops') { const n = g.edTroops(i, E.amt); E.dirty = true; recolor(); FX.markDirty(); toast(`🪖 ${esc(D.n)}: ${n} trupper`); }
+    if (E.tool === 'paint') { const was = E.dirty; if (g.edOwner(i, E.c)) { E.dirty = true; SFX.play('click'); recolor(); FX.markDirty(); if (!was && E.inGame) renderEd(); } else if (E.inGame && s.d[i].o !== E.c) toast('En spelare kan inte förlora sitt sista distrikt', 'bad'); }
+    else if (E.tool === 'troops') { const n = g.edTroops(i, E.amt); if (n == null) return; const was = E.dirty; E.dirty = true; if (!was && E.inGame) renderEd(); recolor(); FX.markDirty(); toast(`🪖 ${esc(D.n)}: ${n} trupper`); }
     else if (E.tool === 'res') { if (g.edRes(i, E.slot, E.res)) { E.dirty = true; recolor(); FX.markDirty(); toast(`📦 ${esc(D.n)}: ${D.rs ? g.RES[D.rs].ic + ' ' + g.RES[D.rs].n : 'ingen resurs'}${D.rs2 ? ' + ' + g.RES[D.rs2].ic + ' ' + g.RES[D.rs2].n : ''}`); } else toast('Ge distriktet en första resurs innan en andra', 'bad'); }
     else if (E.tool === 'land') { if (E.capPick) { if (g.edCap(E.c, i)) { E.capPick = false; E.dirty = true; recolor(); FX.markDirty(); renderEd(); toast(`👑 Ny huvudstad: ${esc(D.n)}`, 'good'); } else toast('Välj ett distrikt som tillhör landet', 'bad'); } else { E.c = s.d[i].o; renderEd(); } }
     else if (E.tool === 'rel') { const o = s.d[i].o; if (o !== E.c) { E.other = o; renderEd(); } }
+  }
+  function openInGameEditor() {
+    const s = S(); if (!s || s.over) { toast('Editorn går inte att använda nu', 'bad'); return; }
+    if (g.mpLocked()) { toast('🛠️ Du kan bara använda editorn när det är din tur', 'bad'); return; }
+    closePanel(); select(-1); enterEditor(null, '', true); toast('🛠️ Editorn är öppen – tryck ✔ Klar för att spela vidare');
+  }
+  function finishInGame() {
+    const E = UI.edit; if (!E) return; const changed = E.dirty;
+    g.edFinish(ME(), changed); exitEditorUI(); UI.mode = 'pol'; document.querySelectorAll('#tools [data-m]').forEach(b => b.classList.toggle('on', b.dataset.m === 'pol'));
+    if (!S().mp) g.saveGame();
+    refresh(); FX.markDirty(); toast(changed ? '🛠️ Ändringarna gäller nu i spelet' : 'Inga ändringar gjordes', changed ? 'good' : '');
   }
   function edSaveDlg(after) {
     const E = UI.edit;
@@ -5137,7 +5174,7 @@ window.NET = (function () {
   }
   function backAction() {
     const m = document.querySelector('#modals .mback:last-child'); if (m) { m.remove(); return true; }
-    if (UI.edit && !UI.edit.list) { const x = $('#ed-x'); if (x) x.click(); return true; }
+    if (UI.edit && !UI.edit.list) { const x = $('#ed-x') || $('#ed-done'); if (x) x.click(); return true; }
     if (UI.target) { endTarget(); return true; }
     if (UI.multi) { endMulti(); return true; }
     if (UI.panel) { if (UI.panel === 'dip' && UI.cview != null) { UI.cview = null; renderPanel(); return true; } closePanel(); return true; }
@@ -5404,7 +5441,7 @@ window.NET = (function () {
    På webben: kollar version.json bredvid sidan. I Android-appen (window.IllyrianApp) sköter appen nedladdningen
    och anropar window.illyrianUpdate.fromApp({state, v, notes}). */
 (function () {
-  const VER = '7.4'; window.ILLYRIAN_VER = VER;
+  const VER = '7.5'; window.ILLYRIAN_VER = VER;
   const APP = window.IllyrianApp || null;
   const newer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
   const css = 'position:fixed;left:50%;transform:translateX(-50%);z-index:99999;max-width:min(560px,calc(100vw - 24px));background:#0f2236;color:#fff;border:1px solid #e0b84a;border-radius:14px;padding:12px 14px;font:15px/1.4 system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.5);';
