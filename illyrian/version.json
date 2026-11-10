@@ -1,8 +1,8 @@
 {
- "v": "7.6",
- "notes": "Mer djup: krigströtthet, rykte, lån och statsskuld, fredsvillkor (skadestånd och demilitariserad gräns), försörjningslinjer, befrielserörelser, 8 nya kriser med val och 22 prestationer. Nya trupper: Hemvärn, Marininfanteri, Robotartilleri och Attackhelikoptrar. Nya byggnader: Sjukhus, Bank, Raffinaderi, Försörjningsdepå och Kärnkraftverk.",
+ "v": "7.6.1",
+ "notes": "Rättning: uppgraderingar av de nya byggnaderna (Sjukhus, Bank, Raffinaderi, Försörjningsdepå, Kärnkraftverk) syns nu direkt, och ”bygg i alla distrikt” fungerar för dem. De nya byggnaderna visas också på kartan.",
  "files": {
-  "index.html": "d86f8a8de8df757b33e2a3bd77d3fbd6f1c9a1930bb1affdf6c91ff5d1bda8ae",
+  "index.html": "ca00801b1b12785ab4ed80c35c13e171ab773e3bb3dc3cd84e2918614fa19330",
   "terrain.jpg": "536ce4cd7fb3326eeec71c031b3acabd8ac4f0167b6dc7d3491a2770193b3f75",
   "clouds.webp": "ac9553190ed3a5ec0f832dd5e9304352c690c4423edf6ac898ff1d3b63527af4",
   "cover.jpg": "3fb4f334becec86737118bd07a0ba83e0ad2d0c7d47e4d4b15e41219e219ee81",
