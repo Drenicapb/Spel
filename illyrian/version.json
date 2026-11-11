@@ -1,8 +1,8 @@
 {
- "v": "7.7",
- "notes": "Nytt: 💡 Rådgivaren som visar vad som är viktigast just nu, minikarta som du kan trycka på för att hoppa i världen, landsnamn på kartan, renare truppsiffror som inte krockar och tangentbordsgenvägar på dator.",
+ "v": "7.8",
+ "notes": "Nytt: krigsmål när du förklarar krig, automatisk förvaltning som bygger åt dig, råvarumarknad för metaller och spannmål, stridsanimationer och ljud för varje truppslag, bilder på de nya trupperna och stämningsmusik som byter mellan fred och krig. Dessutom rådgivare, minikarta och landsnamn på kartan.",
  "files": {
-  "index.html": "fcdb99e5232f3523ca6c3443415cc9851b33fd0bb465ed6c7650efd80aee8f6e",
+  "index.html": "010d8512788098b28f184600ae071a6d50d73525421a386397112e8c0c992a9d",
   "terrain.jpg": "536ce4cd7fb3326eeec71c031b3acabd8ac4f0167b6dc7d3491a2770193b3f75",
   "clouds.webp": "ac9553190ed3a5ec0f832dd5e9304352c690c4423edf6ac898ff1d3b63527af4",
   "cover.jpg": "3fb4f334becec86737118bd07a0ba83e0ad2d0c7d47e4d4b15e41219e219ee81",
