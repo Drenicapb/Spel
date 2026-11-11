@@ -69,6 +69,12 @@ input,select{font:inherit}
 #tools button{width:42px;height:42px;border-radius:12px;background:#0d1a26e6;border:1px solid #ffffff18;font-size:18px;box-shadow:0 4px 14px #0006}
 #tools button.on{border-color:var(--gold);color:var(--gold)}
 #legend{position:fixed;left:10px;top:calc(64px + var(--safe-t));z-index:14;background:#0d1a26e0;border:1px solid #ffffff14;border-radius:10px;padding:6px 9px;font-size:12px;display:flex;flex-direction:column;gap:3px}
+#mini{position:fixed;left:10px;top:calc(88px + var(--safe-t));width:176px;height:81px;border-radius:10px;border:1px solid #ffffff2b;background:#06101a;z-index:14;box-shadow:0 4px 14px #0009;touch-action:none;cursor:crosshair}
+@media(max-width:700px){#mini{width:118px;height:54px}}
+body.menu #mini,body.editing #mini,#mini.hidden{display:none!important}
+body.hasmini:not(.menu) #legend{top:calc(178px + var(--safe-t))}
+@media(max-width:700px){body.hasmini:not(.menu) #legend{top:calc(150px + var(--safe-t))}}
+.adv{display:flex;gap:10px;align-items:center}.adv .grow{flex:1;min-width:0}.adv .aic2{font-size:22px;width:30px;text-align:center;flex:none}.adv.l3{border-color:#ef535066}.adv.l2{border-color:#e8c26a55}
 #legend i{display:inline-block;width:11px;height:11px;border-radius:3px;margin-right:6px;vertical-align:-1px}
 
 /* ---------- banner ---------- */
@@ -636,8 +642,9 @@ body.editing #nav,body.editing #top,body.editing #news,body.editing #goal,body.e
 <div id="monthban"></div>
 <header id="top"></header>
 <div id="news"><div class="nt"></div></div>
-<div id="tools"><button id="t-mode" title="Byt kartläge">🎨</button><button id="t-home" title="Mitt land">⌖</button><button id="t-multi" title="Markera flera">✅</button><button id="t-rank" title="Topplista">🏆</button><button id="t-miss" title="Uppdrag">🎯</button><button id="t-world" title="Hela världen">🌍</button></div>
+<div id="tools"><button id="t-mode" title="Byt kartläge">🎨</button><button id="t-home" title="Mitt land">⌖</button><button id="t-multi" title="Markera flera">✅</button><button id="t-rank" title="Topplista">🏆</button><button id="t-miss" title="Uppdrag">🎯</button><button id="t-adv" title="Rådgivare">💡</button><button id="t-world" title="Hela världen">🌍</button></div>
 <div id="legend" class="hidden"></div>
+<canvas id="mini" class="hidden"></canvas>
 <div id="banner" class="hidden"></div>
 <div id="goal" class="goalbar"></div>
 <section id="dpanel" class="sheet closed"></section>
@@ -3272,6 +3279,7 @@ window.G = {
     // flottor
     drawFleets(now, v, toS, vis);
     // arméskyltar
+    drawCountryNames(now, v, toS, vis);
     drawBadges(v, toS, vis);
     // partiklar
     drawParts(now, v, toS);
@@ -3421,6 +3429,36 @@ window.G = {
   }
   function rr(x, y, w, h, r) { ctx.beginPath(); ctx.moveTo(x + r, y); ctx.arcTo(x + w, y, x + w, y + h, r); ctx.arcTo(x + w, y + h, x, y + h, r); ctx.arcTo(x, y + h, x, y, r); ctx.arcTo(x, y, x + w, y, r); ctx.closePath(); }
   const BICON = ['🏭', '🎓', '🪖', '🏰'];
+  let cnT = -1e9, cnL = [], cnBox = [];
+  function countryLabels(now) {
+    if (now - cnT < 1200 && cnL.length) return cnL; cnT = now; const S = g.S, out = [];
+    for (let c = 0; c < CTR.length; c++) {
+      const own = g.OWN[c]; if (!S.c[c] || !S.c[c].alive || !own || !own.length) continue;
+      let best = own, ba = -1;
+      if (own.length > 1) { const set = new Set(own), seen = new Set(); for (const s0 of own) { if (seen.has(s0)) continue; const cp = [s0]; seen.add(s0); for (let q = 0; q < cp.length; q++) for (const j of DIS[cp[q]].adj) if (set.has(j) && !seen.has(j)) { seen.add(j); cp.push(j); } let a = 0; for (const i of cp) a += DIS[i].sz * DIS[i].sz; if (a > ba) { ba = a; best = cp; } } }
+      let a = 0, x = 0, y = 0, x0 = 1e9, x1 = -1e9; for (const i of best) { const D = DIS[i], w = D.sz * D.sz; a += w; x += D.x * w; y += D.y * w; x0 = Math.min(x0, D.x - D.sz / 2); x1 = Math.max(x1, D.x + D.sz / 2); }
+      x /= a; y /= a; let bi = best[0], bd = 1e18; for (const i of best) { const dd = (DIS[i].x - x) ** 2 + (DIS[i].y - y) ** 2; if (dd < bd) { bd = dd; bi = i; } }
+      out.push({ c, x: (x + DIS[bi].x) / 2, y: (y + DIS[bi].y) / 2, ext: Math.sqrt(a), wid: x1 - x0, n: CTR[c].n.toUpperCase() });
+    }
+    out.sort((p, q) => q.ext - p.ext); return cnL = out;
+  }
+  function drawCountryNames(now, v, toS, vis) {
+    if (OPT.names === false) return; const k = v.k, me = g.ME(), bg = window.UIX && window.UIX.UI.bg;
+    ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.textAlign = 'center'; ctx.textBaseline = 'middle'; ctx.lineJoin = 'round'; const placed = []; cnBox = [];
+    for (const L of countryLabels(now)) {
+      const e = L.ext * k; if (e < 40 || e > 1500 || !vis(L.x, L.y, 90)) continue;
+      let fs = Math.max(9, Math.min(30, e * 0.11)); const font = z => `700 ${z.toFixed(1)}px Cinzel,Georgia,serif`;
+      ctx.font = font(fs); try { ctx.letterSpacing = (fs * 0.14).toFixed(1) + 'px'; } catch (er) { }
+      let tw = ctx.measureText(L.n).width; const maxW = Math.max(L.wid * k * 0.92, e * 1.25);
+      if (tw > maxW) { const f2 = fs * maxW / tw; if (f2 < 7.5) continue; fs = f2; ctx.font = font(fs); try { ctx.letterSpacing = (fs * 0.14).toFixed(1) + 'px'; } catch (er) { } tw = ctx.measureText(L.n).width; }
+      const [sx, sy0] = toS(L.x, L.y); const sy = sy0 - 13 - fs * 0.5; const r = [sx - tw / 2, sy - fs * 0.6, sx + tw / 2, sy + fs * 0.6];
+      if (placed.some(q => r[0] < q[2] && r[2] > q[0] && r[1] < q[3] && r[3] > q[1])) continue; placed.push(r); if (fs >= 12) cnBox.push([r[0] + 2, sy - fs * 0.42, r[2] - 2, sy + fs * 0.42]);
+      ctx.globalAlpha = Math.min(1, (e - 40) / 25) * Math.min(1, (1500 - e) / 500) * 0.86;
+      ctx.lineWidth = Math.max(2.2, fs * 0.24); ctx.strokeStyle = 'rgba(4,9,15,0.8)'; ctx.strokeText(L.n, sx, sy);
+      ctx.fillStyle = !bg && L.c === me ? '#ffe3a0' : !bg && g.atWar(me, L.c) ? '#ffc4bd' : '#eef3f8'; ctx.fillText(L.n, sx, sy);
+    }
+    ctx.globalAlpha = 1; try { ctx.letterSpacing = '0px'; } catch (er) { }
+  }
   function drawBadges(v, toS, vis) {
     const S = g.S, me = g.ME(), k = v.k, sel = window.UIX ? window.UIX.UI.sel : -1;
     ctx.setTransform(dpr, 0, 0, dpr, 0, 0); ctx.textAlign = 'center'; ctx.textBaseline = 'middle';
@@ -3429,6 +3467,12 @@ window.G = {
       const D = DIS[i]; if (!vis(D.x, D.y, 30)) continue; const s = D.sz * k; const d = S.d[i]; const mine = d.o === me; const cap = S.c[d.o].cap === i;
       if (!(s > 34 || (mine && s > 16) || (cap && s > 22) || i === sel)) continue;
       list.push(i);
+    }
+    { // undvik att siffror hamnar ovanpå varandra: egna och markerade visas alltid, övriga viker undan
+      const pr = i => (i === sel ? 8 : 0) + (S.d[i].o === me ? 4 : 0) + (S.c[S.d[i].o].cap === i ? 2 : 0) + (g.atWar(me, S.d[i].o) ? 1 : 0);
+      const P = new Map(list.map(i => [i, pr(i)])); list.sort((a, b) => P.get(b) - P.get(a) || DIS[b].sz - DIS[a].sz); const boxes = [], keep = [], nb = OPT.names === false ? [] : cnBox;
+      for (const i of list) { const [sx, sy] = toS(DIS[i].x, DIS[i].y); const w = String(S.d[i].tr).length * 7.5 + (S.c[S.d[i].o].cap === i ? 26 : 16) - 6; const bx = [sx - w / 2, sy - 7, sx + w / 2, sy + 7]; if (P.get(i) < 4 && boxes.some(q => bx[0] < q[2] && bx[2] > q[0] && bx[1] < q[3] && bx[3] > q[1])) continue; if (P.get(i) < 1 && nb.some(q => bx[0] < q[2] && bx[2] > q[0] && bx[1] < q[3] && bx[3] > q[1])) continue; boxes.push(bx); keep.push(i); }
+      list.length = 0; for (let q = keep.length - 1; q >= 0; q--) list.push(keep[q]);
     }
     for (const i of list) {
       const D = DIS[i], d = S.d[i]; const [sx, sy] = toS(D.x, D.y); const mine = d.o === me; const war = !mine && g.atWar(me, d.o); const cap = S.c[d.o].cap === i;
@@ -3785,7 +3829,7 @@ window.NET = (function () {
     if (W < vw()) x = (vw() - W) / 2; if (H < vh() - 120) y = (vh() - H) / 2;
     UI.view = { x, y, k };
     world.setAttribute('transform', `translate(${x.toFixed(1)},${y.toFixed(1)}) scale(${k.toFixed(4)})`);
-    svg.style.setProperty('--px', (1 / k).toFixed(5)); if (window.FX) FX.markDirty();
+    svg.style.setProperty('--px', (1 / k).toFixed(5)); if (window.FX) FX.markDirty(); miniQueue();
     if (!UI.hk || Math.abs(Math.log(k / UI.hk)) > 0.15) { UI.hk = k; const hp = document.getElementById('hatch'); if (hp) { const sz = (7 / k).toFixed(3); hp.setAttribute('width', sz); hp.setAttribute('height', sz); hp.firstElementChild.setAttribute('width', (2.4 / k).toFixed(3)); hp.firstElementChild.setAttribute('height', sz); } }
     const nz = Math.max(0, Math.min(26, Math.ceil((Math.log2(34) - Math.log2(k)) * 2) + 6));
     if (nz !== zb) { svg.setAttribute('class', 'z' + nz); zb = nz; }
@@ -3870,7 +3914,7 @@ window.NET = (function () {
     $('#tb-menu').onclick = () => openPanel('menu');
     const gp = g.goalProgress(ME());
     $('#goal').textContent = gp.reg ? `⛰️ Balkan: ${gp.n} av ${gp.of} distrikt` : `🌍 Världsdominans ${fmt1(gp.pct)} % av ${Math.round(s.goal * 100)} %`;
-    renderNews(); const myMiss = g.missOf(ME()); $('#t-miss').innerHTML = '🎯' + (myMiss.length ? `<i class="tb">${myMiss.length}</i>` : '');
+    renderNews(); const myMiss = g.missOf(ME()); $('#t-miss').innerHTML = '🎯' + (myMiss.length ? `<i class="tb">${myMiss.length}</i>` : ''); { let nA = 0; try { nA = adviceList().filter(a => a.lvl >= 2).length; } catch (e) { } $('#t-adv').innerHTML = '💡' + (nA ? `<i class="tb" style="background:${nA ? '#ef5350' : ''};color:#fff">${nA}</i>` : ''); }
     const canR = TECH.some(t => !g.canResearch(me, t.k));
     $('#nb-res').innerHTML = `<span>🔬</span>Forskning${canR ? '<i class="badge">!</i>' : ''}`;
   }
@@ -3883,7 +3927,74 @@ window.NET = (function () {
       const t0 = performance.now(); const step = now => { const t = Math.min(1, (now - t0) / 650); const e = 1 - Math.pow(1 - t, 3); el.textContent = fmt(from + (to - from) * e); if (t < 1 && el.isConnected) requestAnimationFrame(step); }; requestAnimationFrame(step);
     }
   }
-  function refresh() { renderTop(); recolor(); renderHL(); renderDPanel(); if (UI.panel) renderPanel(); renderTurnBtn(); achTick(); }
+  function refresh() { renderTop(); recolor(); renderHL(); renderDPanel(); if (UI.panel) renderPanel(); renderTurnBtn(); achTick(); miniRefresh(); }
+  /* ---------- minikarta ---------- */
+  const MINI = { cv: null, base: null, paths: null, sig: '', raf: 0, drag: false };
+  function miniOn() { return FX.OPT.mini !== false && !UI.bg && !!S(); }
+  function miniInit() {
+    const cv = $('#mini'); if (!cv || MINI.cv) return; MINI.cv = cv;
+    const jump = e => { const r = cv.getBoundingClientRect(); const wx = (e.clientX - r.left) / r.width * M.W, wy = (e.clientY - r.top) / r.height * M.H; const k = UI.view.k; setView(vw() / 2 - wx * k, vh() / 2 - wy * k, k); };
+    cv.addEventListener('pointerdown', e => { e.stopPropagation(); e.preventDefault(); try { cv.setPointerCapture(e.pointerId); } catch (er) { } MINI.drag = true; jump(e); });
+    cv.addEventListener('pointermove', e => { if (MINI.drag) { e.stopPropagation(); jump(e); } });
+    const up = e => { MINI.drag = false; e.stopPropagation(); }; cv.addEventListener('pointerup', up); cv.addEventListener('pointercancel', up); cv.addEventListener('click', e => e.stopPropagation()); cv.addEventListener('wheel', e => e.stopPropagation());
+  }
+  function miniRefresh() {
+    miniInit(); const cv = MINI.cv; if (!cv) return; const on = miniOn(); cv.classList.toggle('hidden', !on); document.body.classList.toggle('hasmini', on); if (!on) return;
+    const s = S(), me = ME(); const r = cv.getBoundingClientRect(); const dp = Math.min(3, window.devicePixelRatio || 1); const w = Math.max(60, Math.round(r.width * dp)), h = Math.max(28, Math.round(r.height * dp));
+    let sig = w + 'x' + h + '|' + me + '|' + s.wars.size + '|'; for (let i = 0; i < ND; i++) sig += s.d[i].o + ',';
+    if (sig !== MINI.sig) {
+      MINI.sig = sig; if (!MINI.paths) MINI.paths = DIS.map(D => { try { return new Path2D(D.p); } catch (er) { return null; } });
+      const b = MINI.base || (MINI.base = document.createElement('canvas')); b.width = w; b.height = h; const c = b.getContext('2d');
+      const gr = c.createLinearGradient(0, 0, 0, h); gr.addColorStop(0, '#0a1b2c'); gr.addColorStop(1, '#071320'); c.fillStyle = gr; c.fillRect(0, 0, w, h);
+      c.setTransform(w / M.W, 0, 0, h / M.H, 0, 0);
+      for (let i = 0; i < ND; i++) { const pth = MINI.paths[i]; if (!pth) continue; const o = s.d[i].o; c.fillStyle = o === me ? PLAYER_COL : g.atWar(me, o) ? '#e5484d' : g.allied(me, o) || s.c[o].lord === me ? '#4e8ff0' : CTR[o].col; c.globalAlpha = o === me || g.atWar(me, o) ? 1 : 0.72; c.fill(pth); }
+      c.globalAlpha = 1; c.setTransform(1, 0, 0, 1, 0, 0);
+    }
+    if (cv.width !== w || cv.height !== h) { cv.width = w; cv.height = h; }
+    miniDraw();
+  }
+  function miniDraw() {
+    const cv = MINI.cv; if (!cv || !MINI.base || cv.classList.contains('hidden') || !UI.view) return; const c = cv.getContext('2d'), w = cv.width, h = cv.height, v = UI.view;
+    c.clearRect(0, 0, w, h); c.drawImage(MINI.base, 0, 0);
+    const fx = w / M.W, fy = h / M.H; let x0 = -v.x / v.k * fx, y0 = -v.y / v.k * fy, x1 = (vw() - v.x) / v.k * fx, y1 = (vh() - v.y) / v.k * fy;
+    x0 = Math.max(1, x0); y0 = Math.max(1, y0); x1 = Math.min(w - 1, x1); y1 = Math.min(h - 1, y1); if (x1 - x0 < 4) { const m = (x0 + x1) / 2; x0 = m - 2; x1 = m + 2; } if (y1 - y0 < 4) { const m = (y0 + y1) / 2; y0 = m - 2; y1 = m + 2; }
+    if (x1 - x0 > w * 0.93 && y1 - y0 > h * 0.93) return;
+    c.fillStyle = 'rgba(255,255,255,0.10)'; c.fillRect(x0, y0, x1 - x0, y1 - y0); c.lineWidth = Math.max(1.5, w / 130); c.strokeStyle = '#ffffff'; c.strokeRect(x0, y0, x1 - x0, y1 - y0);
+  }
+  function miniQueue() { if (MINI.raf || !MINI.cv) return; MINI.raf = requestAnimationFrame(() => { MINI.raf = 0; miniDraw(); }); }
+  /* ---------- rådgivare ---------- */
+  function adviceList() {
+    const s = S(), me = ME(), cs = s.c[me], out = []; if (!cs || !cs.alive || UI.bg || s.edit) return out;
+    const own = g.OWN[me], inc = g.incomeOf(me), en = g.enemiesOf(me); const add = (lvl, ic, t, d, fn) => out.push({ lvl, ic, t, d, fn });
+    const goD = i => () => { closePanel(); select(i); focusOn([i], 6); }; const pan = (pn, a) => () => openPanel(pn, a); const nm = l => l.slice(0, 3).map(i => DIS[i].n).join(', ') + (l.length > 3 ? ` och ${l.length - 3} till` : '');
+    if (inc < 0) add(3, '💸', `Du går back ${fmt(-inc)} 💰 per tur`, cs.m < -inc * 4 ? 'Kassan räcker bara några turer. Minska armén, höj skatten eller bygg industri – annars deserterar trupperna.' : 'Se över underhåll, skatt och räntor.', pan('eco'));
+    const ns = own.filter(i => s.d[i].o !== s.d[i].core && s.d[i].tr > 0 && !g.supplied(i)); if (ns.length) add(3, '📦', `${ns.length} distrikt saknar försörjning`, `${nm(ns)} – trupperna där minskar med 6 % per tur.`, goD(ns[0]));
+    if (en.length) {
+      const thr = []; let weak = null;
+      for (const i of own) { let foe = 0; for (const j of DIS[i].adj) if (s.d[j].o !== me && g.atWar(me, s.d[j].o)) foe += s.d[j].tr; if (foe > 0 && foe > s.d[i].tr * 1.6 + 2) thr.push([i, foe]); }
+      thr.sort((a, b) => (s.c[me].cap === b[0]) - (s.c[me].cap === a[0]) || b[1] / (s.d[b[0]].tr + 1) - a[1] / (s.d[a[0]].tr + 1));
+      for (const [i, foe] of thr.slice(0, 2)) add(3, '🛡️', `${DIS[i].n} är hotat`, `${foe} fiendetrupper står vid gränsen mot dina ${s.d[i].tr}.${s.c[me].cap === i ? ' Det är din huvudstad!' : ''}`, goD(i));
+      for (const i of own) { const av = g.avail(i); if (av < 4) continue; for (const j of DIS[i].adj) { const o = s.d[j].o; if (o === me || !g.atWar(me, o)) continue; const q = av / (s.d[j].tr + 1); if (q >= 2.2 && (!weak || q > weak.q)) weak = { i, j, q, av }; } }
+      if (weak) add(1, '⚔️', `Svag punkt: ${DIS[weak.j].n}`, `Bara ${s.d[weak.j].tr} försvarare – du har ${weak.av} trupper redo i ${DIS[weak.i].n}.`, goD(weak.i));
+      const w = Math.round(cs.wwx || 0); if (w >= 40) add(2, '😩', `Krigströttheten är ${w} %`, 'Folket vill ha fred. Nöjdheten och inkomsten sjunker ju längre kriget pågår.', pan('dip'));
+      for (const e of en) if ((s.c[e].wwx || 0) >= 40) { add(1, '🕊️', `${CTR[e].n} är krigstrött`, 'Bra läge att förhandla om fred på dina villkor – kräv skadestånd eller land.', pan('dip', e)); break; }
+    }
+    const rebel = own.filter(i => s.d[i].core !== me && s.d[i].ct < 45 && s.d[i].tr < 3); if (rebel.length) add(2, '🔥', `Risk för uppror i ${rebel.length} distrikt`, `${nm(rebel)} har låg kontroll och nästan inga trupper.`, goD(rebel[0]));
+    const sad = own.filter(i => (s.d[i].h ?? 55) < 30).sort((a, b) => s.d[a].h - s.d[b].h); if (sad.length) add(2, '😠', `${sad.length} distrikt är missnöjda`, `${nm(sad)}. Bygg Kultur & nöje, Sjukhus eller Bostäder, eller sänk skatten.`, goD(sad[0]));
+    const fi = g.fuelInfo(me); if (fi.dem > 0 && fi.ratio < 0.9) add(2, '⛽', 'Oljebrist', `Bränslet räcker till ${Math.round(fi.ratio * 100)} % – stridsvagnar, flyg och fartyg är svagare. Köp olja eller bygg Raffinaderi.`, pan('eco'));
+    if (cs.debtHi || ((cs.debt || 0) > 0 && (cs.debt || 0) * g.loanRate(me) > Math.max(2, inc) * 0.3)) add(2, '🏦', 'Statsskulden tynger', `Du betalar ${fmt1((cs.debt || 0) * g.loanRate(me))} 💰 i ränta per tur. Betala av när du kan.`, pan('eco'));
+    const tk = g.TECH.filter(t => !g.canResearch(me, t.k)); if (tk.length) add(1, '🔬', `Du har råd med ${tk.length} forskning${tk.length > 1 ? 'ar' : ''}`, tk.slice(0, 3).map(t => t.ic + ' ' + t.n).join(' · '), pan('res'));
+    if (!en.length && cs.m > Math.max(80, inc * 8)) add(1, '🏗️', `${fmt(cs.m)} 💰 ligger oanvända`, 'Pengar i kassan ger ingenting. Bygg ut städerna eller stärk armén.', pan('city'));
+    for (const m of g.missOf(me)) { const mi = g.missionInfo(m, me); if (!mi.done && mi.left <= 3 && mi.left >= 0) { add(1, '🎯', 'Ett uppdrag går snart ut', `${mi.txt} – ${mi.left} tur${mi.left === 1 ? '' : 'er'} kvar.`, () => missionsModal()); break; } }
+    if (g.repOf(me) < 30) add(1, '🏅', 'Ditt rykte är dåligt', 'Andra länder litar inte på dig: dyrare lån och svårare avtal. Gåvor, hjälp och fred höjer ryktet.', pan('dip'));
+    out.sort((a, b) => b.lvl - a.lvl); return out;
+  }
+  function adviceModal() {
+    const L = adviceList();
+    const body = L.length ? L.map((a, k) => `<div class="card adv l${a.lvl}"><span class="aic2">${a.ic}</span><div class="grow"><b>${esc(a.t)}</b><div class="tiny muted">${esc(a.d)}</div></div><button class="btn sm" data-adv="${k}">Visa</button></div>`).join('') : '<p class="small muted">Allt ser bra ut just nu. Rådgivaren säger till när något behöver din uppmärksamhet.</p>';
+    const m = modal({ title: '💡 Rådgivaren', wide: true, body: `<p class="tiny muted" style="margin-top:-4px">De viktigaste sakerna i ditt land just nu, de mest brådskande först.</p>${body}`, buttons: [{ t: 'Stäng', cls: 'pri' }] });
+    m.root.querySelectorAll('[data-adv]').forEach(b => b.onclick = () => { const a = L[+b.dataset.adv]; m.close(); if (a && a.fn) a.fn(); });
+  }
   /* ---------- prestationer (sparas på enheten) ---------- */
   const ACH_KEY = 'illy_ach';
   function achGet() { try { return JSON.parse(localStorage.getItem(ACH_KEY) || '{}') || {}; } catch (e) { return {}; } }
@@ -4882,6 +4993,8 @@ window.NET = (function () {
       <label class="tog"><span>🔊 Ljudeffekter</span><input type="checkbox" data-opt="sound" ${FX.OPT.sound ? 'checked' : ''}></label>
       <label class="tog"><span>🌗 Dag och natt med stadsljus</span><input type="checkbox" data-opt="night" ${FX.OPT.night !== false ? 'checked' : ''}></label>
       <label class="tog"><span>☁️ Moln över kartan</span><input type="checkbox" data-opt="clouds" ${FX.OPT.clouds ? 'checked' : ''}></label>
+      <label class="tog"><span>🗺️ Minikarta</span><input type="checkbox" data-opt="mini" ${FX.OPT.mini !== false ? 'checked' : ''}></label>
+      <label class="tog"><span>🔤 Landsnamn på kartan</span><input type="checkbox" data-opt="names" ${FX.OPT.names !== false ? 'checked' : ''}></label>
       <label class="tog"><span>📰 Nyhetsremsa</span><input type="checkbox" data-opt="news" ${FX.OPT.news ? 'checked' : ''}></label>
       <label class="tog"><span>🔋 Spara batteri (färre effekter)</span><input type="checkbox" data-opt="lowfx" ${FX.OPT.lowfx ? 'checked' : ''}></label>
       <p class="tiny muted" style="margin-top:14px">Spelet sparas automatiskt efter varje tur. Byt sparplats via 🏠 Startskärmen.</p>
@@ -4891,7 +5004,7 @@ window.NET = (function () {
     P.querySelector('#m-ed').onclick = () => openInGameEditor();
     P.querySelector('#m-upd').onclick = () => { if (window.illyrianUpdate) window.illyrianUpdate.check(true); };
     P.querySelector('#m-help').onclick = helpModal; P.querySelector('#m-rank').onclick = () => openPanel('rank'); P.querySelector('#m-log').onclick = () => openPanel('log'); P.querySelector('#m-won').onclick = () => wonderModal(); P.querySelector('#m-cult').onclick = () => cultureModal(); P.querySelector('#m-gov').onclick = () => govModal(); P.querySelector('#m-stats').onclick = statsModal; P.querySelector('#m-miss').onclick = missionsModal; P.querySelector('#m-ach').onclick = achModal;
-    P.querySelectorAll('[data-opt]').forEach(cb => cb.onchange = () => { FX.OPT[cb.dataset.opt] = cb.checked; FX.saveOpt(); FX.markDirty(); if (cb.dataset.opt === 'sound' && cb.checked) SFX.play('coin'); renderNews(); });
+    P.querySelectorAll('[data-opt]').forEach(cb => cb.onchange = () => { FX.OPT[cb.dataset.opt] = cb.checked; FX.saveOpt(); FX.markDirty(); if (cb.dataset.opt === 'sound' && cb.checked) SFX.play('coin'); renderNews(); miniRefresh(); });
     P.querySelector('#m-home').onclick = () => { g.saveGame(); closePanel(); select(-1); showStart(); };
     P.querySelector('#m-new').onclick = () => confirmBox('Nytt spel', '<p>Vill du avsluta och starta ett nytt spel? Nuvarande spel skrivs över när du startar.</p>', 'Nytt spel').then(ok => { if (ok) { closePanel(); select(-1); showStart(); } });
   }
@@ -4935,6 +5048,9 @@ window.NET = (function () {
       <p><b>🆕 Trupper:</b> 🛡️ Hemvärn (billigt, extra starkt försvar i kärnland), ⚓ Marininfanteri (landstigning utan straff, kräver Flotta 2 och hamn), 🎯 Robotartilleri (krossar befästningar, kräver Vapenteknik 4 och Militärbas 2) och 🚁 Attackhelikoptrar (starka, kräver Flygvapen 2 och militärbas, drar mycket olja).</p>
       <p><b>🆕 Byggnader:</b> 🏥 Sjukhus (tillväxt och nöjdhet), 🏦 Bank (inkomst och lägre ränta), ⛽ Raffinaderi (mer olja och inkomst, kräver olja i distriktet), 📦 Försörjningsdepå (försörjning och försvar) och ⚛️ Kärnkraftverk (inkomst och forskning, kräver uran i landet).</p>
       <p><b>🏅 Prestationer:</b> Meny → Prestationer. ${g.ACH.length} utmaningar som sparas på enheten. De kan inte låsas upp i ett spel där världen har ändrats med editorn.</p>
+      <p><b>💡 Rådgivaren:</b> tryck på 💡 i högerkanten för att se vad som är viktigast just nu – hotade distrikt, svaga punkter hos fienden, missnöje, oljebrist, skulder och forskning du har råd med. Den röda siffran visar hur många saker som brådskar.</p>
+      <p><b>🗺️ Minikarta &amp; landsnamn:</b> minikartan uppe till vänster visar hela världen – du i guld, fiender i rött, allierade i blått. Tryck eller dra i den för att hoppa dit. Landsnamnen syns på kartan när du zoomar ut. Båda kan stängas av i menyn.</p>
+      <p><b>⌨️ Tangentbord (dator):</b> 1–5 byter flik, Enter avslutar turen, + och − zoomar, H går hem till ditt land, R öppnar rådgivaren och Esc stänger.</p>
       <p><b>🛡️ Kontraspionage:</b> bygg Säkerhetstjänst och starta kontraspionageoperationer under Regering för att stoppa och avslöja fiendens spioner.</p>
       <p><b>🗺️ Kartlägen:</b> tryck på 🎨 för att färga kartan efter nöjdhet, resurser, befolkning eller terräng.</p>
       <p><b>🏆 Topplista:</b> tryck på 🏆 eller på dominansmätaren för att jämföra alla länder i dominans, område, ekonomi, befolkning, militär, flotta, teknik med mera.</p>
@@ -5407,10 +5523,19 @@ window.NET = (function () {
     $('#t-mode').onclick = () => modePicker();
     $('#t-multi').onclick = () => { if (UI.multi) endMulti(); else startMulti(UI.sel >= 0 && S().d[UI.sel].o === ME() ? UI.sel : null); };
     $('#t-home').onclick = () => focusOn(g.OWN[ME()], 7);
-    $('#t-rank').onclick = () => openPanel('rank'); $('#goal').onclick = () => openPanel('rank'); $('#t-miss').onclick = missionsModal; $('#news').onclick = () => openPanel('log');
+    $('#t-rank').onclick = () => openPanel('rank'); $('#goal').onclick = () => openPanel('rank'); $('#t-miss').onclick = missionsModal; $('#t-adv').onclick = () => { SFX.play('click'); adviceModal(); }; $('#news').onclick = () => openPanel('log');
     $('#t-world').onclick = () => { const k = minK() / 0.92 * (window.innerWidth < 700 ? 1.6 : 1); animateTo(vw() / 2 - M.W / 2 * k, vh() / 2 - M.H / 2 * k, k); };
     setView(0, 0, minK());
-    document.addEventListener('keydown', e => { if (e.key === 'Escape') backAction(); });
+    document.addEventListener('keydown', e => { if (e.key === 'Escape') { backAction(); return; }
+      const tg = e.target && e.target.tagName; if (tg === 'INPUT' || tg === 'TEXTAREA' || tg === 'SELECT' || tg === 'BUTTON' || e.ctrlKey || e.metaKey || e.altKey) return;
+      if (UI.bg || !S() || S().edit || document.querySelector('#modals .mback') || !$('#start').classList.contains('hidden') || !$('#pick').classList.contains('hidden')) return;
+      const pn = { '1': 'map', '2': 'eco', '3': 'res', '4': 'dip', '5': 'city' }[e.key];
+      if (pn) { const b = document.querySelector(`#nav .tab[data-p="${pn}"]`); if (b) b.click(); }
+      else if (e.key === 'Enter') { e.preventDefault(); $('#endturn').click(); }
+      else if (e.key === '+' || e.key === '=' || e.key === '-') { const v = UI.view, k2 = v.k * (e.key === '-' ? 1 / 1.35 : 1.35), cx = (vw() / 2 - v.x) / v.k, cy = (vh() / 2 - v.y) / v.k; animateTo(vw() / 2 - cx * k2, vh() / 2 - cy * k2, k2, 180); }
+      else if (e.key === 'r' || e.key === 'R') adviceModal();
+      else if (e.key === 'h' || e.key === 'H') $('#t-home').click();
+    });
     window.onAndroidBack = () => backAction();
     showStart(); playIntro();
   }
@@ -5699,7 +5824,7 @@ window.NET = (function () {
    På webben: kollar version.json bredvid sidan. I Android-appen (window.IllyrianApp) sköter appen nedladdningen
    och anropar window.illyrianUpdate.fromApp({state, v, notes}). */
 (function () {
-  const VER = '7.6.1'; window.ILLYRIAN_VER = VER;
+  const VER = '7.7'; window.ILLYRIAN_VER = VER;
   const APP = window.IllyrianApp || null;
   const newer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
   const css = 'position:fixed;left:50%;transform:translateX(-50%);z-index:99999;max-width:min(560px,calc(100vw - 24px));background:#0f2236;color:#fff;border:1px solid #e0b84a;border-radius:14px;padding:12px 14px;font:15px/1.4 system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.5);';
