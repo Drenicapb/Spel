@@ -424,6 +424,17 @@ button.stat.hbtn:active{transform:scale(.97)}
 .note.bad{background:rgba(239,83,80,.08);border-color:rgba(239,83,80,.25);color:#ffc9c4}
 .note .tiny{margin-top:3px}
 .bar.thin{height:4px;margin-top:5px}
+.seg button{white-space:nowrap}
+.mgrid{display:grid;grid-template-columns:repeat(3,1fr);gap:8px;margin-bottom:6px}
+.mtile{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:5px;min-height:76px;padding:10px 4px;border-radius:14px;background:linear-gradient(#15263a,#0f1c2a);border:1px solid #ffffff16;font-size:12px;font-weight:600;line-height:1.15;text-align:center;color:var(--text);transition:transform .08s,border-color .15s}
+.mtile span{font-size:25px;line-height:1}.mtile:active{transform:scale(.95);border-color:var(--gold)}.mtile.warn{border-color:#ef535055}
+#top .res{cursor:pointer;transition:transform .08s}#top .res:active{transform:scale(.94)}
+@media(max-width:700px){#tools{gap:6px}#tools button{width:38px;height:38px;font-size:16px;border-radius:11px}.seg button{font-size:12.5px;padding:7px 3px}}
+#tour{position:fixed;inset:0;z-index:9999;touch-action:none}
+#tour .hole{position:fixed;border-radius:14px;border:2px solid var(--gold);box-shadow:0 0 0 9999px rgba(3,8,14,.78),0 0 22px #ffcf4d88 inset;transition:all .28s ease;pointer-events:none}
+#tour .tcard{position:fixed;left:50%;transform:translateX(-50%);width:min(340px,calc(100vw - 28px));background:linear-gradient(#17283b,#0f1c2a);border:1px solid #ffcf4d66;border-radius:16px;padding:14px 16px;box-shadow:0 12px 40px #000b;transition:top .28s ease}
+#tour .tcard h3{margin:0 0 6px;font-family:Cinzel,Georgia,serif;font-size:16px}#tour .tcard p{margin:0;font-size:13.5px;line-height:1.45;color:#d6dfe8}
+#tour .trow{display:flex;align-items:center;gap:8px;margin-top:12px}#tour .tdots{flex:1;display:flex;gap:5px}#tour .tdots i{width:7px;height:7px;border-radius:4px;background:#ffffff30}#tour .tdots i.on{background:var(--gold);width:16px}
 .evo.on{border-color:var(--gold);box-shadow:0 0 0 1px var(--gold) inset}.spark{width:100%;height:34px;display:block;margin:6px 0 2px}
 .ach{opacity:.62}.ach.on{opacity:1;border-color:#e8c26a66}.ach .aic{font-size:26px;width:38px;text-align:center;flex:none}
 .seg.dtabs{margin:10px 0 8px}
@@ -4058,16 +4069,17 @@ window.NET = (function () {
     const s = S(), me = ME(), cs = s.c[me]; const inc = g.incomeBreakdown(me);
     $('#top').innerHTML = `
       <button class="me" id="tb-me"><span class="fl">${g.flagOf(me)}</span><span style="min-width:0;text-align:left"><div class="nm">${esc(CTR[me].n)}</div><div class="dt">${g.dateOf(s.turn)} · tur ${s.turn}</div></span></button>
-      <div class="res" title="Pengar"><b>💰 <span data-num="m">${fmt(UI.top.m ?? cs.m)}</span></b><small class="${inc.total < 0 ? 'neg' : ''}">${sgn(inc.total)}/tur</small></div>
-      <div class="res" title="Forskning"><b>🔬 <span data-num="rp">${fmt(UI.top.rp ?? cs.rp)}</span></b><small>+${fmt1(g.researchOf(me))}</small></div>
-      <div class="res" title="Trupper"><b>🪖 <span data-num="tr">${fmt(UI.top.tr ?? inc.troops)}</span></b><small style="color:var(--muted)">${g.OWN[me].length} distr.</small></div>
+      <div class="res" data-tp="eco" title="Pengar"><b>💰 <span data-num="m">${fmt(UI.top.m ?? cs.m)}</span></b><small class="${inc.total < 0 ? 'neg' : ''}">${sgn(inc.total)}/tur</small></div>
+      <div class="res" data-tp="res" title="Forskning"><b>🔬 <span data-num="rp">${fmt(UI.top.rp ?? cs.rp)}</span></b><small>+${fmt1(g.researchOf(me))}</small></div>
+      <div class="res" data-tp="city" title="Trupper"><b>🪖 <span data-num="tr">${fmt(UI.top.tr ?? inc.troops)}</span></b><small style="color:var(--muted)">${g.OWN[me].length} distr.</small></div>
       <button class="iconbtn" id="tb-menu">☰</button>`;
     countTo({ m: cs.m, rp: cs.rp, tr: inc.troops });
     $('#tb-me').onclick = () => openPanel('dip', me);
     $('#tb-menu').onclick = () => openPanel('menu');
+    document.querySelectorAll('#top [data-tp]').forEach(e => e.onclick = () => { SFX.play('tab'); openPanel(e.dataset.tp); });
     const gp = g.goalProgress(ME());
     $('#goal').textContent = gp.reg ? `⛰️ Balkan: ${gp.n} av ${gp.of} distrikt` : `🌍 Världsdominans ${fmt1(gp.pct)} % av ${Math.round(s.goal * 100)} %`;
-    renderNews(); const myMiss = g.missOf(ME()); if (!UI.bg && !S().edit) FX.MUSIC.setMood(g.enemiesOf(ME()).length ? 'war' : 'peace'); $('#t-miss').innerHTML = '🎯' + (myMiss.length ? `<i class="tb">${myMiss.length}</i>` : ''); { let nA = 0; try { nA = adviceList().filter(a => a.lvl >= 2).length; } catch (e) { } $('#t-adv').innerHTML = '💡' + (nA ? `<i class="tb" style="background:${nA ? '#ef5350' : ''};color:#fff">${nA}</i>` : ''); }
+    renderNews(); const myMiss = g.missOf(ME()); if (!UI.bg && !S().edit && !introOn()) FX.MUSIC.setMood(g.enemiesOf(ME()).length ? 'war' : 'peace'); $('#t-miss').innerHTML = '🎯' + (myMiss.length ? `<i class="tb">${myMiss.length}</i>` : ''); { let nA = 0; try { nA = adviceList().filter(a => a.lvl >= 2).length; } catch (e) { } $('#t-adv').innerHTML = '💡' + (nA ? `<i class="tb" style="background:${nA ? '#ef5350' : ''};color:#fff">${nA}</i>` : ''); }
     const canR = TECH.some(t => !g.canResearch(me, t.k));
     $('#nb-res').innerHTML = `<span>🔬</span>Forskning${canR ? '<i class="badge">!</i>' : ''}`;
   }
@@ -4080,7 +4092,41 @@ window.NET = (function () {
       const t0 = performance.now(); const step = now => { const t = Math.min(1, (now - t0) / 650); const e = 1 - Math.pow(1 - t, 3); el.textContent = fmt(from + (to - from) * e); if (t < 1 && el.isConnected) requestAnimationFrame(step); }; requestAnimationFrame(step);
     }
   }
-  function refresh() { renderTop(); recolor(); renderHL(); renderDPanel(); if (UI.panel) renderPanel(); renderTurnBtn(); achTick(); miniRefresh(); }
+  function refresh() { renderTop(); recolor(); renderHL(); renderDPanel(); if (UI.panel) renderPanel(); renderTurnBtn(); achTick(); miniRefresh(); tourTick(); }
+  /* ---------- snabbguide för nya spelare ---------- */
+  const TOUR_KEY = 'illy_tour';
+  const TOUR_STEPS = [
+    [null, '👋 Välkommen!', 'Du styr ett land och ska ta över världen – med ekonomi, diplomati eller krig. Den här guiden visar det viktigaste på en halv minut.'],
+    ['#top', '💰 Ditt land', 'Här ser du pengar, forskning och trupper, och hur mycket de ändras varje tur. Tryck på en siffra för att öppna rätt panel.'],
+    [null, '🗺️ Kartan', 'Tryck på ett distrikt för att bygga, rekrytera och flytta trupper. Nyp eller scrolla för att zooma, dra för att flytta kartan.'],
+    ['#nav', '📋 Flikarna', 'Ekonomi, Forskning, Diplomati och Städer. Under Diplomati sluter du avtal och förklarar krig.'],
+    ['#tools', '🧰 Verktyg', 'Kartlägen, hem till ditt land, markera flera distrikt, topplista, uppdrag och 💡 rådgivaren som säger vad som är viktigast just nu.'],
+    ['#mini', '🧭 Minikartan', 'Du är guld, fiender röda och allierade blå. Tryck i den för att hoppa dit i världen.'],
+    ['#goal', '🌍 Målet', 'Mätaren visar hur stor del av världen du kontrollerar. Når du målet har du vunnit.'],
+    ['#endturn', '▶ Nästa tur', 'När du är klar trycker du här. Då agerar alla andra länder, och du får en rapport om vad som hände. Lycka till!'],
+  ];
+  function tourDone() { try { return !!localStorage.getItem(TOUR_KEY) || /[?&]notour/.test(location.search); } catch (e) { return true; } }
+  function tourStart(force) {
+    if (document.getElementById('tour') || UI.bg || !S() || S().edit) return; if (!force && (tourDone() || S().mp || document.querySelector('#modals .mback') || introOn())) return;
+    try { localStorage.setItem(TOUR_KEY, '1'); } catch (e) { }
+    const steps = TOUR_STEPS.filter(st => { if (!st[0]) return true; const el = document.querySelector(st[0]); return el && el.getBoundingClientRect().width > 0; });
+    const root = document.createElement('div'); root.id = 'tour'; root.innerHTML = '<div class="hole"></div><div class="tcard"></div>'; document.body.appendChild(root);
+    const hole = root.querySelector('.hole'), card = root.querySelector('.tcard'); let k = 0;
+    const end = () => { root.remove(); };
+    const show = () => {
+      const [sel, t, d] = steps[k]; const el = sel ? document.querySelector(sel) : null; let r = el ? el.getBoundingClientRect() : null;
+      if (r) { const pad = 5; r = { x: Math.max(4, r.left - pad), y: Math.max(4, r.top - pad), w: Math.min(vw() - 8, r.width + pad * 2), h: r.height + pad * 2 }; } else r = { x: vw() / 2 - 60, y: vh() * 0.34, w: 120, h: 120 };
+      hole.style.left = r.x + 'px'; hole.style.top = r.y + 'px'; hole.style.width = r.w + 'px'; hole.style.height = r.h + 'px'; hole.style.borderRadius = sel ? '14px' : '60px';
+      card.innerHTML = `<h3>${t}</h3><p>${d}</p><div class="trow"><div class="tdots">${steps.map((x, q) => `<i class="${q === k ? 'on' : ''}"></i>`).join('')}</div><button class="btn sm" id="tour-skip">${k < steps.length - 1 ? 'Hoppa över' : ''}</button><button class="btn sm pri" id="tour-next">${k < steps.length - 1 ? 'Nästa' : 'Börja spela'}</button></div>`;
+      const ch = card.offsetHeight || 150; const below = r.y + r.h + 14, above = r.y - ch - 14; card.style.top = (below + ch < vh() - 10 ? below : above > 10 ? above : Math.max(10, vh() - ch - 14)) + 'px';
+      const sk = card.querySelector('#tour-skip'); if (k >= steps.length - 1) sk.style.visibility = 'hidden'; sk.onclick = e => { e.stopPropagation(); end(); };
+      card.querySelector('#tour-next').onclick = e => { e.stopPropagation(); SFX.play('click'); if (++k >= steps.length) end(); else show(); };
+    };
+    root.addEventListener('pointerdown', e => e.stopPropagation()); root.addEventListener('click', e => { e.stopPropagation(); if (e.target === root) { if (++k >= steps.length) end(); else show(); } });
+    show();
+  }
+  function introOn() { return !!document.querySelector('#intro-snd, .intro-skip'); }
+  function tourTick() { if (UI.tourT || tourDone() || UI.bg || !S() || S().edit || S().mp || S().turn > 3) return; let tries = 0; const go = () => { UI.tourT = 0; if (tourDone() || UI.bg) return; if ((introOn() || document.querySelector('#modals .mback') || !$('#start').classList.contains('hidden')) && tries++ < 60) { UI.tourT = setTimeout(go, 1500); return; } tourStart(false); }; UI.tourT = setTimeout(go, 1600); }
   /* ---------- minikarta ---------- */
   const MINI = { cv: null, base: null, paths: null, sig: '', raf: 0, drag: false };
   function miniOn() { return FX.OPT.mini !== false && !UI.bg && !!S(); }
@@ -5168,8 +5214,7 @@ window.NET = (function () {
   }
   function panelMenu(P) {
     const s = S();
-    P.innerHTML = head('☰ Meny', `${['Lätt', 'Normal', 'Svår'][s.diff]} · mål ${Math.round(s.goal * 100)}% av världen`) + `<div class="sh-body"><div class="btns" style="flex-direction:column">
-      <button class="btn" id="m-log">📜 Händelselogg</button><button class="btn" id="m-won">🏛️ Underverk</button><button class="btn" id="m-un">🇺🇳 FN-förslag</button><button class="btn" id="m-ed">🛠️ Redigera världen</button><button class="btn" id="m-cult">🎭 Kultur &amp; lobbyister</button><button class="btn" id="m-gov">🏛️ Regering</button><button class="btn" id="m-rank">🏆 Topplista</button><button class="btn" id="m-stats">📈 Statistik</button><button class="btn" id="m-miss">🎯 Uppdrag</button><button class="btn" id="m-ach">🏅 Prestationer</button><button class="btn" id="m-save">💾 Spara spelet</button><button class="btn" id="m-help">❓ Hur spelar man?</button><button class="btn" id="m-home">🏠 Startskärmen</button><button class="btn" id="m-new">🆕 Nytt spel</button></div>
+    P.innerHTML = head('☰ Meny', `${['Lätt', 'Normal', 'Svår'][s.diff]} · mål ${Math.round(s.goal * 100)}% av världen`) + `<div class="sh-body"><div class="sect" style="margin-top:0">Ditt land</div><div class="mgrid"><button class="mtile " id="m-gov"><span>🏛️</span>Regering</button><button class="mtile " id="m-cult"><span>🎭</span>Kultur &amp; lobby</button><button class="mtile " id="m-miss"><span>🎯</span>Uppdrag</button><button class="mtile " id="m-adv"><span>💡</span>Rådgivaren</button><button class="mtile " id="m-ach"><span>🏅</span>Prestationer</button><button class="mtile " id="m-stats"><span>📈</span>Statistik</button></div><div class="sect">Världen</div><div class="mgrid"><button class="mtile " id="m-rank"><span>🏆</span>Topplista</button><button class="mtile " id="m-log"><span>📜</span>Händelselogg</button><button class="mtile " id="m-won"><span>🗿</span>Underverk</button><button class="mtile " id="m-un"><span>🇺🇳</span>FN-förslag</button><button class="mtile " id="m-ed"><span>🛠️</span>Redigera världen</button></div><div class="sect">Spelet</div><div class="mgrid"><button class="mtile " id="m-save"><span>💾</span>Spara</button><button class="mtile " id="m-help"><span>❓</span>Hjälp</button><button class="mtile " id="m-tour"><span>🎓</span>Snabbguide</button><button class="mtile " id="m-home"><span>🏠</span>Startskärmen</button><button class="mtile warn" id="m-new"><span>🆕</span>Nytt spel</button></div>
       <div class="sect">Inställningar</div>
       <label class="tog"><span>🔊 Ljudeffekter</span><input type="checkbox" data-opt="sound" ${FX.OPT.sound ? 'checked' : ''}></label>
       <label class="tog"><span>🌗 Dag och natt med stadsljus</span><input type="checkbox" data-opt="night" ${FX.OPT.night !== false ? 'checked' : ''}></label>
@@ -5185,7 +5230,7 @@ window.NET = (function () {
     P.querySelector('#m-un').onclick = () => unProposeModal();
     P.querySelector('#m-ed').onclick = () => openInGameEditor();
     P.querySelector('#m-upd').onclick = () => { if (window.illyrianUpdate) window.illyrianUpdate.check(true); };
-    P.querySelector('#m-help').onclick = helpModal; P.querySelector('#m-rank').onclick = () => openPanel('rank'); P.querySelector('#m-log').onclick = () => openPanel('log'); P.querySelector('#m-won').onclick = () => wonderModal(); P.querySelector('#m-cult').onclick = () => cultureModal(); P.querySelector('#m-gov').onclick = () => govModal(); P.querySelector('#m-stats').onclick = statsModal; P.querySelector('#m-miss').onclick = missionsModal; P.querySelector('#m-ach').onclick = achModal;
+    P.querySelector('#m-help').onclick = helpModal; P.querySelector('#m-rank').onclick = () => openPanel('rank'); P.querySelector('#m-log').onclick = () => openPanel('log'); P.querySelector('#m-won').onclick = () => wonderModal(); P.querySelector('#m-cult').onclick = () => cultureModal(); P.querySelector('#m-gov').onclick = () => govModal(); P.querySelector('#m-stats').onclick = statsModal; P.querySelector('#m-miss').onclick = missionsModal; P.querySelector('#m-ach').onclick = achModal; P.querySelector('#m-adv').onclick = adviceModal; P.querySelector('#m-tour').onclick = () => { closePanel(); tourStart(true); };
     P.querySelectorAll('[data-opt]').forEach(cb => cb.onchange = () => { FX.OPT[cb.dataset.opt] = cb.checked; FX.saveOpt(); FX.markDirty(); if (cb.dataset.opt === 'sound' && cb.checked) SFX.play('coin'); renderNews(); miniRefresh(); FX.MUSIC.kick(); });
     P.querySelector('#m-home').onclick = () => { g.saveGame(); closePanel(); select(-1); showStart(); };
     P.querySelector('#m-new').onclick = () => confirmBox('Nytt spel', '<p>Vill du avsluta och starta ett nytt spel? Nuvarande spel skrivs över när du startar.</p>', 'Nytt spel').then(ok => { if (ok) { closePanel(); select(-1); showStart(); } });
@@ -5234,6 +5279,7 @@ window.NET = (function () {
       <p><b>🤖 Automatisk förvaltning:</b> välj inriktning (Ekonomi, Militär eller Balans) för ett distrikt under Bygg, eller för alla under Städer. Distrikten bygger då själva för en andel av inkomsten som du bestämmer. Du får en rad i turrapporten om vad som byggdes.</p>
       <p><b>📈 Råvarumarknad:</b> under Ekonomi kan du köpa metaller och spannmål som du saknar, eller sälja ditt överskott. Priserna rör sig med krig, årstid och efterfrågan.</p>
       <p><b>🎵 Musik &amp; ljud:</b> musiken byter stämning mellan fred och krig, och varje truppslag har eget ljud och egen animation i strid. Stäng av under Meny → Inställningar.</p>
+      <p><b>🎓 Snabbguide:</b> en kort genomgång av skärmen visas första gången du spelar. Du hittar den igen under Meny → Snabbguide. Tryck på pengar, forskning eller trupper i toppraden för att öppna rätt panel.</p>
       <p><b>💡 Rådgivaren:</b> tryck på 💡 i högerkanten för att se vad som är viktigast just nu – hotade distrikt, svaga punkter hos fienden, missnöje, oljebrist, skulder och forskning du har råd med. Den röda siffran visar hur många saker som brådskar.</p>
       <p><b>🗺️ Minikarta &amp; landsnamn:</b> minikartan uppe till vänster visar hela världen – du i guld, fiender i rött, allierade i blått. Tryck eller dra i den för att hoppa dit. Landsnamnen syns på kartan när du zoomar ut. Båda kan stängas av i menyn.</p>
       <p><b>⌨️ Tangentbord (dator):</b> 1–5 byter flik, Enter avslutar turen, + och − zoomar, H går hem till ditt land, R öppnar rådgivaren och Esc stänger.</p>
@@ -6013,7 +6059,7 @@ window.NET = (function () {
    På webben: kollar version.json bredvid sidan. I Android-appen (window.IllyrianApp) sköter appen nedladdningen
    och anropar window.illyrianUpdate.fromApp({state, v, notes}). */
 (function () {
-  const VER = '7.8'; window.ILLYRIAN_VER = VER;
+  const VER = '7.9'; window.ILLYRIAN_VER = VER;
   const APP = window.IllyrianApp || null;
   const newer = (a, b) => { const x = String(a).split('.').map(Number), y = String(b).split('.').map(Number); for (let i = 0; i < Math.max(x.length, y.length); i++) if ((x[i] || 0) !== (y[i] || 0)) return (x[i] || 0) > (y[i] || 0); return false; };
   const css = 'position:fixed;left:50%;transform:translateX(-50%);z-index:99999;max-width:min(560px,calc(100vw - 24px));background:#0f2236;color:#fff;border:1px solid #e0b84a;border-radius:14px;padding:12px 14px;font:15px/1.4 system-ui,sans-serif;box-shadow:0 10px 30px rgba(0,0,0,.5);';

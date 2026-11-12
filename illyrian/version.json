@@ -1,8 +1,8 @@
 {
- "v": "7.8",
- "notes": "Nytt: krigsmål när du förklarar krig, automatisk förvaltning som bygger åt dig, råvarumarknad för metaller och spannmål, stridsanimationer och ljud för varje truppslag, bilder på de nya trupperna och stämningsmusik som byter mellan fred och krig. Dessutom rådgivare, minikarta och landsnamn på kartan.",
+ "v": "7.9",
+ "notes": "Snyggare och enklare: menyn är ett överskådligt rutnät, en snabbguide visar skärmen för nya spelare, och du kan trycka på pengar, forskning och trupper i toppraden för att öppna rätt panel. Mindre verktygsknappar och tydligare val på mobil.",
  "files": {
-  "index.html": "010d8512788098b28f184600ae071a6d50d73525421a386397112e8c0c992a9d",
+  "index.html": "12746e86b9d8c7d805079d54ede1c9f8f746f2dcd2350b25607002fe1f785d59",
   "terrain.jpg": "536ce4cd7fb3326eeec71c031b3acabd8ac4f0167b6dc7d3491a2770193b3f75",
   "clouds.webp": "ac9553190ed3a5ec0f832dd5e9304352c690c4423edf6ac898ff1d3b63527af4",
   "cover.jpg": "3fb4f334becec86737118bd07a0ba83e0ad2d0c7d47e4d4b15e41219e219ee81",
