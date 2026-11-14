@@ -30,3 +30,10 @@ Kahoot-likt quiz för hela familjen – storskärmen visar frågorna och alla sv
 Cirka 7 480 frågor i 16 kategorier och 4 åldersgrupper – med kartfrågor (sätt ut nålen), gissa personen med ledtrådar och närmast rätt svar – cirka 21 600 Spotify-låtar till musikfrågorna, egna quiz och ett enspelarläge. Android-app: **https://drenicapb.github.io/Spel/app/QuizChampions.apk**. Se `quizchampions/LASMIG.md`.
 
 Mappen `quizchampions/` byggs separat (inte från `Privat`) – låt den vara kvar när Bucinca-filerna kopieras hit.
+
+## Mëso Shqip
+
+Lär dig kosovoalbanska – fraser för vardagen, flashcards, quiz och uttal, med intro-bild och lekfullt tema: **https://drenicapb.github.io/Spel/shqip/**
+
+Android-app: **https://drenicapb.github.io/Spel/app/Shqip.apk** (visar sidan ovan; koden finns i `Privat`, gren `shqip`). Innehållet ligger i `shqip/data.js`.
+Ny version: `python3 shqip/bump.py 1.0.1 "Vad som är nytt"` och pusha – appen visar då *🆕 Ny version – Uppdatera*.

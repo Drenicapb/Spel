@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#E8432A">
+<title>Mëso Shqip</title>
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="img/favicon.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<style>
+@font-face{font-family:Fredoka;src:url(../fonts/fredoka.woff2) format("woff2");font-weight:300 700;font-display:swap}
+:root{--red:#E8432A;--yel:#FFC83A;--blue:#2A7FD4;--ink:#2B1B17;--mut:#7d6a62;--bg:#FFF4E0;--card:#fff;--line:#2B1B17}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent}
+html,body{margin:0;min-height:100%}
+body{font:500 17px/1.35 Fredoka,ui-rounded,"Nunito",system-ui,sans-serif;color:var(--ink);
+ background:radial-gradient(circle at 12% 8%,#ffd9a0 0 90px,transparent 91px),radial-gradient(circle at 92% 22%,#ffb3a3 0 70px,transparent 71px),radial-gradient(circle at 80% 92%,#ffe28a 0 110px,transparent 111px),var(--bg);
+ background-attachment:fixed;padding-bottom:calc(84px + env(safe-area-inset-bottom));-webkit-user-select:none;user-select:none}
+header{position:sticky;top:0;z-index:5;display:flex;align-items:center;gap:8px;padding:calc(10px + env(safe-area-inset-top)) 14px 10px;background:linear-gradient(180deg,#E8432A,#F2662B);color:#fff;border-radius:0 0 26px 26px;box-shadow:0 5px 0 #b3301b}
+header h1{margin:0;font-size:24px;flex:1;letter-spacing:.3px}header h1 b{color:var(--yel)}
+.chip{background:#ffffff30;border-radius:20px;padding:5px 11px;font-weight:600;font-size:15px;white-space:nowrap}
+.menu-b{background:#ffffff30;border:0;color:#fff;border-radius:50%;width:40px;height:40px;font-size:20px;cursor:pointer}
+main{max-width:600px;margin:0 auto;padding:16px 14px}
+h2{margin:6px 2px 12px;font-size:24px}
+.card{background:var(--card);border:3px solid var(--line);border-radius:22px;padding:14px;margin-bottom:12px;box-shadow:0 5px 0 var(--line)}
+.hero{background:linear-gradient(135deg,#FFC83A,#FF9F43);display:flex;gap:12px;align-items:center}
+.hero .t{flex:1}.hero small{font-size:13px;font-weight:600;opacity:.75}.hero .w{font-size:26px;font-weight:700}
+.grid{display:grid;grid-template-columns:1fr 1fr;gap:12px}
+.tile{border:3px solid var(--line);border-radius:22px;padding:12px 10px 10px;color:#fff;text-align:left;cursor:pointer;font:inherit;box-shadow:0 5px 0 var(--line);transition:transform .08s,box-shadow .08s;min-height:128px;display:flex;flex-direction:column}
+.tile:active,.btn:active,.opt:active{transform:translateY(4px);box-shadow:0 1px 0 var(--line)}
+.tile .e{font-size:34px;display:block;animation:bob 3s ease-in-out infinite}
+.tile b{display:block;font-size:17px;line-height:1.15;margin-top:2px;text-shadow:0 2px 0 #0003}
+.tile small{opacity:.9;font-size:13px}
+.bar{height:9px;background:#0003;border-radius:6px;margin-top:auto;overflow:hidden;border:2px solid #0004}.bar i{display:block;height:100%;background:#fff}
+@keyframes bob{0%,100%{transform:translateY(0) rotate(-4deg)}50%{transform:translateY(-4px) rotate(4deg)}}
+.btn{display:block;width:100%;border:3px solid var(--line);background:var(--red);color:#fff;border-radius:18px;padding:13px 16px;font:700 18px Fredoka,ui-rounded,sans-serif;cursor:pointer;box-shadow:0 5px 0 var(--line);transition:transform .08s,box-shadow .08s}
+.btn.alt{background:#fff;color:var(--ink)}.btn.blue{background:var(--blue)}.btn.green{background:#2FB35A}
+.back{background:none;border:0;font:700 17px Fredoka,sans-serif;color:var(--red);padding:2px 0 10px;cursor:pointer}
+.row{display:flex;gap:10px;align-items:center;padding:11px 2px;border-bottom:2px dashed #e3d5c4}.row:last-child{border:0}
+.row .x{flex:1}.sq{font-weight:700;font-size:20px}.sv{color:var(--mut);font-size:15px}.note{font-size:13px;color:var(--mut)}
+.tag{font-size:11px;background:var(--red);color:#fff;border-radius:8px;padding:1px 7px;margin-left:6px;vertical-align:middle;font-weight:700}
+.spk{flex:none;width:44px;height:44px;border-radius:50%;border:3px solid var(--line);background:var(--yel);font-size:19px;cursor:pointer;box-shadow:0 3px 0 var(--line)}
+.spk:active{transform:translateY(3px);box-shadow:none}
+.dot{width:12px;height:12px;border-radius:50%;background:#e3d5c4;flex:none}.dot.k1{background:var(--yel)}.dot.k2{background:#2FB35A}
+select{font:600 16px Fredoka,sans-serif;padding:11px;border-radius:16px;border:3px solid var(--line);background:#fff;color:var(--ink);width:100%;margin-bottom:12px;box-shadow:0 4px 0 var(--line)}
+.flip{perspective:900px;margin-bottom:14px}
+.face{min-height:230px;border:3px solid var(--line);border-radius:26px;box-shadow:0 6px 0 var(--line);display:flex;flex-direction:column;align-items:center;justify-content:center;text-align:center;padding:18px;cursor:pointer;transition:transform .35s;background:#fff}
+.face.back2{background:var(--blue);color:#fff;transform:rotateY(0)}
+.face .big{font-size:32px;font-weight:700;line-height:1.15}
+.pop{animation:pop .35s}
+@keyframes pop{0%{transform:scale(.88) rotate(-2deg)}60%{transform:scale(1.04)}100%{transform:scale(1)}}
+.two{display:flex;gap:10px;margin-top:6px}.two .btn{flex:1}
+.opt{display:block;width:100%;text-align:left;margin-top:10px;padding:14px;border-radius:18px;border:3px solid var(--line);background:#fff;font:600 18px Fredoka,sans-serif;color:var(--ink);cursor:pointer;box-shadow:0 5px 0 var(--line);transition:transform .08s,box-shadow .08s}
+.opt.ok{background:#2FB35A;color:#fff;animation:pop .35s}.opt.bad{background:#E5484D;color:#fff;animation:shake .35s}
+@keyframes shake{25%{transform:translateX(-6px)}75%{transform:translateX(6px)}}
+.qh{display:flex;justify-content:space-between;font-weight:600;font-size:14px;color:var(--mut);margin-bottom:6px}
+.pb{height:14px;border:3px solid var(--line);border-radius:10px;background:#fff;overflow:hidden;margin-bottom:12px}.pb i{display:block;height:100%;background:linear-gradient(90deg,#FFC83A,#E8432A)}
+.big-e{font-size:64px;text-align:center;animation:bob 2s ease-in-out infinite}
+nav{position:fixed;left:0;right:0;bottom:0;z-index:6;display:flex;gap:6px;padding:8px 10px calc(8px + env(safe-area-inset-bottom));background:#fff;border-top:3px solid var(--line);border-radius:22px 22px 0 0}
+nav button{flex:1;border:0;background:none;padding:6px 0;border-radius:16px;font:600 12px Fredoka,sans-serif;color:var(--mut);cursor:pointer}
+nav button .i{display:block;font-size:24px;transition:transform .15s}
+nav button.on{background:#FFE3B0;color:var(--red)}nav button.on .i{transform:scale(1.2) rotate(-6deg)}
+table{width:100%;border-collapse:collapse}td{padding:8px 4px;border-bottom:2px dashed #e3d5c4;vertical-align:top}td:first-child{font-weight:700;font-size:20px;color:var(--red);white-space:nowrap;padding-right:12px}
+#toast{position:fixed;left:14px;right:14px;bottom:calc(96px + env(safe-area-inset-bottom));background:var(--ink);color:#fff;padding:12px 14px;border-radius:16px;font-size:14px;z-index:30;display:none}
+#upd{position:fixed;left:12px;right:12px;top:calc(64px + env(safe-area-inset-top));z-index:20;display:none;background:var(--blue);color:#fff;border:3px solid var(--line);border-radius:18px;padding:10px 12px;box-shadow:0 5px 0 var(--line);align-items:center;gap:10px;font-weight:600}
+#upd button{margin-left:auto;border:3px solid var(--line);background:var(--yel);color:var(--ink);border-radius:14px;padding:8px 12px;font:700 15px Fredoka,sans-serif;cursor:pointer}
+#sheet{position:fixed;inset:0;z-index:25;background:#0008;display:none;align-items:flex-end}
+#sheet .in{background:var(--bg);width:100%;max-width:600px;margin:0 auto;border:3px solid var(--line);border-radius:26px 26px 0 0;padding:16px 16px calc(18px + env(safe-area-inset-bottom))}
+#sheet .btn{margin-top:10px}
+#fx{position:fixed;inset:0;pointer-events:none;z-index:40}
+#intro{position:fixed;inset:0;z-index:50;display:flex;align-items:flex-start;justify-content:center;transition:opacity .5s;cursor:pointer;
+ background:#E8432A url(img/intro.webp) center/cover no-repeat}
+@media (min-aspect-ratio:3/4){#intro{background:url(img/intro.webp) center/contain no-repeat,linear-gradient(135deg,#ea3a28,#fdd454)}}
+#intro.off{opacity:0;pointer-events:none}
+#intro span{margin-top:calc(10px + env(safe-area-inset-top));background:#fff;border:3px solid var(--line);border-radius:20px;padding:6px 16px;font-weight:700;font-size:15px;box-shadow:0 4px 0 var(--line);animation:bob 1.6s ease-in-out infinite;display:none}
+.warn{font-size:12px;color:var(--mut);text-align:center;margin:16px 8px}
+</style>
+</head>
+<body>
+<div id="intro"><span>Tryck för att börja</span></div>
+<header><h1>Mëso <b>Shqip</b></h1><div class="chip" id="xp"></div><div class="chip" id="fire"></div><button class="menu-b" id="mb" aria-label="Meny">☰</button></header>
+<div id="upd"><span id="updt"></span><button id="updb">Uppdatera</button></div>
+<main id="app"></main>
+<nav id="nav"></nav>
+<div id="sheet"><div class="in" id="sin"></div></div>
+<div id="toast"></div>
+<canvas id="fx"></canvas>
+<script src="data.js"></script>
+<script>
+/* ============ VERSION & UPPDATERING ============
+   Höj VER (och CACHE i sw.js) när du ändrar appen, kör sedan: python3 bump.py 1.0.1 "Vad som är nytt"
+   Appen kollar version.json vid start, när du kommer tillbaka och var 30:e minut, och visar då "Ny version – Uppdatera". */
+const VER="1.0.0";
+const $=s=>document.querySelector(s),app=$("#app");
+const SQ=window.SQApp||null,IN_APP=!!SQ;
+const COLORS=["#E8432A","#2A7FD4","#2FB35A","#8E5CF2","#F08A1C","#E0449B","#14A3A3","#D9482F","#5B7BD5","#C9A100","#E5484D","#3C9D4E","#7B61FF","#E57A00","#1F8FBF","#C2417A","#4C9F70","#D2691E"];
+let P={known:{},xp:0,last:"",streak:0};
+try{Object.assign(P,JSON.parse(localStorage.getItem("sq3")||"{}"))}catch(e){}
+function save(){try{localStorage.setItem("sq3",JSON.stringify(P))}catch(e){}}
+const today=()=>new Date().toISOString().slice(0,10);
+function touchStreak(){const t=today();if(P.last===t)return;const y=new Date(Date.now()-864e5).toISOString().slice(0,10);P.streak=P.last===y?P.streak+1:1;P.last=t;save()}
+function addXP(n){touchStreak();P.xp+=n;save();head()}
+function level(){return Math.floor(P.xp/100)+1}
+function head(){$("#xp").textContent="⭐ Nivå "+level()+" · "+P.xp+" XP";$("#fire").textContent="🔥 "+(P.last&&Math.abs((new Date(today())-new Date(P.last))/864e5)<=1?P.streak:0)}
+const esc=s=>String(s).replace(/[&<>"]/g,c=>({"&":"&amp;","<":"&lt;",">":"&gt;",'"':"&quot;"}[c]));
+const key=(c,i)=>c.id+":"+i;
+const all=()=>DATA.flatMap(c=>c.items.map((it,i)=>({c,i,sq:it[0],sv:it[1],ks:it[2],n:it[3]})));
+const col=c=>COLORS[DATA.indexOf(c)%COLORS.length];
+const pct=c=>Math.round(100*c.items.filter((_,i)=>P.known[key(c,i)]>=2).length/c.items.length);
+let toastT;function toast(m,ms){const t=$("#toast");t.textContent=m;t.style.display="block";clearTimeout(toastT);toastT=setTimeout(()=>t.style.display="none",ms||5000)}
+
+/* ---------- uppläsning ---------- */
+function say(txt){
+ const text=String(txt).replace("…","");
+ if(IN_APP&&SQ.speak){let r="";try{r=SQ.speak(text)}catch(e){}
+  if(r==="nolang"&&!say.warned){say.warned=true;toast("Albansk röst saknas. Installera: Inställningar → Allmän hantering → Text-till-tal → Google → Röstdata → Albanska. Tills vidare används närmaste röst.",9000)}
+  else if(r==="notts")toast("Text-till-tal är inte tillgängligt på telefonen.");
+  return}
+ const ss=window.speechSynthesis;
+ if(!ss||typeof SpeechSynthesisUtterance==="undefined"){toast("Ljud stöds inte här. Prova Chrome eller Samsung Internet.");return}
+ try{const v=ss.getVoices();let voice=v.find(x=>/^sq/i.test(x.lang)),note="";
+  if(!voice&&v.length){voice=v.find(x=>/^(hr|bs|sr|it)/i.test(x.lang));note="Ingen albansk röst installerad – använder närmaste röst."}
+  const u=new SpeechSynthesisUtterance(text);if(voice){u.voice=voice;u.lang=voice.lang}else u.lang="sq-AL";u.rate=.85;
+  u.onerror=e=>toast("Uppläsningen misslyckades ("+(e.error||"okänt")+").");ss.cancel();ss.speak(u);if(note)toast(note)}catch(e){toast("Uppläsning fungerar inte här.")}}
+
+/* ---------- konfetti ---------- */
+const cv=$("#fx"),cx=cv.getContext("2d");let parts=[],raf=0;
+function fit(){cv.width=innerWidth;cv.height=innerHeight}addEventListener("resize",fit);fit();
+function confetti(n,y){n=n||90;for(let i=0;i<n;i++)parts.push({x:innerWidth/2+(Math.random()-.5)*120,y:y||innerHeight*.45,vx:(Math.random()-.5)*14,vy:-Math.random()*14-4,r:Math.random()*7+4,c:COLORS[i%COLORS.length],a:Math.random()*6,va:(Math.random()-.5)*.4,l:90+Math.random()*50});if(!raf)raf=requestAnimationFrame(tick)}
+function tick(){cx.clearRect(0,0,cv.width,cv.height);parts=parts.filter(p=>p.l>0);for(const p of parts){p.x+=p.vx;p.y+=p.vy;p.vy+=.45;p.vx*=.99;p.a+=p.va;p.l--;cx.save();cx.translate(p.x,p.y);cx.rotate(p.a);cx.fillStyle=p.c;cx.globalAlpha=Math.min(1,p.l/30);cx.fillRect(-p.r,-p.r/2,p.r*2,p.r);cx.restore()}raf=parts.length?requestAnimationFrame(tick):0}
+
+/* ---------- navigering ---------- */
+let S={tab:"learn",cat:null};
+function nav(){const t=[["learn","📚","Lär"],["cards","🃏","Kort"],["quiz","🎯","Quiz"],["pron","🔤","Uttal"]];
+ $("#nav").innerHTML=t.map(x=>`<button class="${S.tab==x[0]?"on":""}" data-t="${x[0]}"><span class="i">${x[1]}</span>${x[2]}</button>`).join("");
+ $("#nav").querySelectorAll("button").forEach(b=>b.onclick=()=>{S.tab=b.dataset.t;S.cat=null;fc.q=[];qz.n=0;qz.score=0;render()})}
+function poolSel(){return `<select id="pool"><option value="all">🌍 Alla kategorier</option>${DATA.map(c=>`<option value="${c.id}" ${S.cat==c.id?"selected":""}>${c.e} ${c.name}</option>`).join("")}</select>`}
+function pool(){const v=$("#pool")?$("#pool").value:"all";S.cat=v=="all"?null:v;return all().filter(x=>!S.cat||x.c.id==S.cat)}
+
+function learn(){
+ if(S.cat){const c=DATA.find(x=>x.id==S.cat);
+  app.innerHTML=`<button class="back" id="bk">← Alla kategorier</button><h2>${c.e} ${c.name}</h2><div class="card">`+
+  c.items.map((it,i)=>`<div class="row"><span class="dot k${Math.min(2,P.known[key(c,i)]||0)}"></span><div class="x"><div class="sq">${esc(it[0])}${it[2]?`<span class="tag">${it[2]}</span>`:""}</div><div class="sv">${esc(it[1])}</div>${it[3]?`<div class="note">${esc(it[3])}</div>`:""}</div><button class="spk" data-s="${esc(it[0])}" aria-label="Lyssna">🔊</button></div>`).join("")+`</div><button class="btn green" id="go">🃏 Öva den här kategorin</button>`;
+  $("#bk").onclick=()=>{S.cat=null;render()};$("#go").onclick=()=>{S.tab="cards";fc.q=[];render()};
+  app.querySelectorAll(".spk").forEach(b=>b.onclick=()=>say(b.dataset.s));return}
+ const A=all(),d=A[Math.floor((Date.now()/864e5))%A.length];
+ app.innerHTML=`<div class="card hero"><div class="big-e">💡</div><div class="t"><small>DAGENS ORD</small><div class="w">${esc(d.sq)}</div><div>${esc(d.sv)}</div></div><button class="spk" id="dw">🔊</button></div>
+ <div class="grid">`+DATA.map(c=>`<button class="tile" data-c="${c.id}" style="background:${col(c)}"><span class="e">${c.e}</span><b>${c.name}</b><small>${c.items.length} fraser</small><div class="bar"><i style="width:${pct(c)}%"></i></div></button>`).join("")+`</div>
+ <div class="card" style="margin-top:14px"><b>Kosovo-albanska 🇽🇰</b><div class="note" style="font-size:14px;margin-top:4px">${KSNOTE}</div><div class="note"><span class="tag" style="margin:0">KS</span> = vanlig kosovarisk vardagsform</div></div>
+ <p class="warn">Innehållet är AI-genererat – låt gärna en modersmålstalare dubbelkolla uttryck och dialektformer.</p>`;
+ $("#dw").onclick=()=>say(d.sq);
+ app.querySelectorAll(".tile").forEach(b=>b.onclick=()=>{S.cat=b.dataset.c;render();scrollTo(0,0)})}
+
+let fc={q:[],i:0,flip:false};
+function cards(){
+ app.innerHTML=poolSel()+`<div id="fcw"></div>`;
+ $("#pool").onchange=()=>{fc.q=[];cards()};
+ const p=pool();
+ if(!fc.q.length){fc.q=p.slice().sort(()=>Math.random()-.5).slice(0,20);fc.i=0;fc.flip=false}
+ draw();
+ function draw(){
+  if(fc.i>=fc.q.length){confetti(140);addXP(10);$("#fcw").innerHTML=`<div class="card" style="text-align:center"><div class="big-e">🎉</div><h2>Snyggt jobbat!</h2><div>Du gick igenom ${fc.q.length} kort · +10 XP</div></div><button class="btn" id="again2">Fler kort</button>`;$("#again2").onclick=()=>{fc.q=[];cards()};return}
+  const it=fc.q[fc.i];
+  $("#fcw").innerHTML=`<div class="qh"><span>Kort ${fc.i+1} av ${fc.q.length}</span><span>Tryck på kortet för att vända</span></div><div class="pb"><i style="width:${100*fc.i/fc.q.length}%"></i></div>
+  <div class="flip"><div class="face ${fc.flip?"back2 pop":"pop"}" id="fl"><div class="note" style="${fc.flip?"color:#fff;opacity:.8":""}">${fc.flip?"Svenska":"Albanska"}</div><div class="big">${fc.flip?esc(it.sv):esc(it.sq)}</div>${it.ks?`<span class="tag" style="margin-top:8px">KS</span>`:""}${fc.flip&&it.n?`<div class="note" style="color:#fff">${esc(it.n)}</div>`:""}</div></div>
+  <div class="two"><button class="btn alt" id="hard">🤔 Svårt</button><button class="spk" style="width:58px;height:58px;font-size:24px;align-self:center" id="sp">🔊</button><button class="btn green" id="got">😎 Kan den</button></div>`;
+  $("#fl").onclick=()=>{fc.flip=!fc.flip;if(!fc.flip)say(it.sq);draw()};
+  $("#sp").onclick=()=>say(it.sq);
+  const k=key(it.c,it.i);
+  $("#got").onclick=()=>{P.known[k]=Math.min(2,(P.known[k]||0)+1);save();addXP(2);fc.i++;fc.flip=false;draw()};
+  $("#hard").onclick=()=>{P.known[k]=0;save();fc.q.push(it);fc.i++;fc.flip=false;draw()}}}
+
+let qz={n:0,score:0,combo:0};
+function quiz(){
+ app.innerHTML=poolSel()+`<div id="qw"></div>`;
+ $("#pool").onchange=()=>{qz.n=0;qz.score=0;qz.combo=0;quiz()};
+ const p=pool();
+ if(qz.n>=10){const em=qz.score>=9?"🏆":qz.score>=7?"🥳":qz.score>=5?"👍":"💪";if(qz.score>=5)confetti(160);addXP(qz.score>=9?20:10);
+  $("#qw").innerHTML=`<div class="card" style="text-align:center"><div class="big-e">${em}</div><h2>${qz.score} av 10 rätt!</h2><div>${qz.score>=9?"Fantastiskt! 🇽🇰":qz.score>=7?"Mycket bra!":qz.score>=5?"Bra jobbat – fortsätt öva!":"Öva lite till, du klarar det!"}</div></div><button class="btn" id="re">Spela igen</button>`;
+  $("#re").onclick=()=>{qz.n=0;qz.score=0;qz.combo=0;quiz()};return}
+ if(p.length<4){$("#qw").innerHTML='<div class="card">Välj en större kategori.</div>';return}
+ const it=p[Math.floor(Math.random()*p.length)],dir=Math.random()<.5;
+ const wrong=p.filter(x=>x!==it&&x.sv!==it.sv&&x.sq!==it.sq).sort(()=>Math.random()-.5).slice(0,3);
+ const opts=[it,...wrong].sort(()=>Math.random()-.5);
+ $("#qw").innerHTML=`<div class="qh"><span>Fråga ${qz.n+1} av 10</span><span>✅ ${qz.score}${qz.combo>1?" · 🔥 x"+qz.combo:""}</span></div><div class="pb"><i style="width:${qz.n*10}%"></i></div>
+ <div class="card" style="text-align:center"><div class="note">${dir?"Vad betyder":"Hur säger man"}</div><div class="big" style="font-size:28px;font-weight:700">${dir?esc(it.sq):esc(it.sv)}${dir?"":"?"}</div>${dir?`<button class="spk" id="qs" style="margin-top:8px">🔊</button>`:""}</div>`+
+ opts.map((o,j)=>`<button class="opt" data-j="${j}">${dir?esc(o.sv):esc(o.sq)}</button>`).join("")+`<div id="nx"></div>`;
+ if(dir){$("#qs").onclick=()=>say(it.sq);say(it.sq)}
+ $("#qw").querySelectorAll(".opt").forEach(b=>b.onclick=()=>{
+  const ok=opts[+b.dataset.j]===it;
+  $("#qw").querySelectorAll(".opt").forEach((x,j)=>{x.disabled=true;if(opts[j]===it)x.classList.add("ok")});
+  const k=key(it.c,it.i);
+  if(ok){qz.score++;qz.combo++;P.known[k]=Math.min(2,(P.known[k]||0)+1);addXP(5);confetti(qz.combo>2?60:25,b.getBoundingClientRect().top)}else{b.classList.add("bad");qz.combo=0;P.known[k]=0;if(navigator.vibrate)navigator.vibrate(60)}
+  save();if(!dir)say(it.sq);
+  $("#nx").innerHTML=`<button class="btn blue" style="margin-top:14px" id="n">${qz.n>=9?"Se resultat":"Nästa →"}</button>`;
+  $("#n").onclick=()=>{qz.n++;quiz();scrollTo(0,0)};$("#n").scrollIntoView({block:"nearest"})})}
+
+function pron(){
+ app.innerHTML=`<h2>🔤 Uttal</h2><div class="card"><div class="note" style="font-size:14px;margin-bottom:6px">Albanska uttalas ungefär som det stavas. Betoningen ligger oftast på sista stavelsen.</div><table>${PRON.map(r=>`<tr><td>${r[0]}</td><td>${r[1]}</td></tr>`).join("")}</table></div>
+ <div class="card"><b>Kosovarisk dialekt 🇽🇰</b><div class="note" style="font-size:14px;margin-top:4px">${KSNOTE}</div></div>`}
+
+/* ---------- meny ---------- */
+function menu(){
+ const sh=$("#sheet");$("#sin").innerHTML=`<h2 style="margin-top:0">☰ Meny</h2>
+ <div class="note">Version ${VER}${IN_APP?" · Android-app "+(SQ.version?SQ.version():""):""}</div>
+ <button class="btn blue" id="mu">🔄 Sök efter uppdatering</button>
+ ${IN_APP&&SQ.hasAlbanian?`<div class="note" style="margin-top:8px">Albansk röst: ${SQ.hasAlbanian()?"✅ installerad":"❌ saknas (närmaste röst används)"}</div>`:""}
+ <button class="btn alt" id="mr">🗑️ Nollställ framsteg</button><button class="btn alt" id="mc">Stäng</button>`;
+ sh.style.display="flex";
+ $("#mc").onclick=closeMenu;sh.onclick=e=>{if(e.target===sh)closeMenu()};
+ $("#mu").onclick=()=>{closeMenu();checkUpdate(true)};
+ $("#mr").onclick=()=>{if(confirm("Nollställa alla framsteg?")){P={known:{},xp:0,last:"",streak:0};save();closeMenu();head();render()}}}
+function closeMenu(){$("#sheet").style.display="none"}
+$("#mb").onclick=menu;
+
+/* ---------- uppdatering ---------- */
+let newV=null;
+async function checkUpdate(manual){
+ try{const r=await fetch("version.json?t="+Date.now(),{cache:"no-store"});const j=await r.json();
+  const apkNew=IN_APP&&SQ.apkCode&&j.apk&&j.apk.code>SQ.apkCode();
+  if(j.version&&j.version!==VER){newV=j;$("#updt").textContent="🆕 Ny version "+j.version+(j.notes?" – "+j.notes:"");$("#updb").textContent="Uppdatera";$("#updb").onclick=doUpdate;$("#upd").style.display="flex"}
+  else if(apkNew){$("#updt").textContent="🆕 Ny appversion finns att ladda ner";$("#updb").textContent="Hämta";$("#updb").onclick=()=>{location.href=j.apk.url};$("#upd").style.display="flex"}
+  else if(manual)toast("Du har senaste versionen ✅ ("+VER+")",3000)}
+ catch(e){if(manual)toast("Kunde inte söka just nu – är du online?",3500)}}
+async function doUpdate(){
+ try{if("serviceWorker"in navigator){const rs=await navigator.serviceWorker.getRegistrations();for(const r of rs)await r.unregister()}
+  if(window.caches){const ks=await caches.keys();for(const k of ks)await caches.delete(k)}}catch(e){}
+ location.replace(location.pathname+"?u="+Date.now())}
+addEventListener("visibilitychange",()=>{if(!document.hidden)checkUpdate()});
+setInterval(checkUpdate,30*60*1000);
+if("serviceWorker"in navigator&&location.protocol.startsWith("http"))navigator.serviceWorker.register("sw.js").catch(()=>{});
+
+/* ---------- bakåt (Android) ---------- */
+window.sqBack=()=>{if($("#sheet").style.display=="flex"){closeMenu();return true}if($("#intro")&&!$("#intro").classList.contains("off")){endIntro();return true}if(S.tab=="learn"&&S.cat){S.cat=null;render();return true}if(S.tab!="learn"){S.tab="learn";S.cat=null;render();return true}return false};
+
+/* ---------- start ---------- */
+function render(){nav();head();({learn,cards,quiz,pron})[S.tab]();scrollTo(0,0)}
+function endIntro(){const i=$("#intro");i.classList.add("off");setTimeout(()=>i.remove(),600)}
+const skipIntro=/[?&]u=/.test(location.search);
+if(skipIntro)$("#intro").remove();else{$("#intro span").style.display="block";$("#intro").onclick=endIntro;setTimeout(endIntro,3200)}
+try{speechSynthesis.getVoices()}catch(e){}
+render();checkUpdate();
+</script>
+</body>
+</html>

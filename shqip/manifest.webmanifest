@@ -1,0 +1,16 @@
+{
+  "name": "Mëso Shqip",
+  "short_name": "Mëso Shqip",
+  "description": "Lär dig kosovoalbanska – fraser för vardagen, kort och quiz.",
+  "lang": "sv",
+  "start_url": "./",
+  "scope": "./",
+  "display": "standalone",
+  "background_color": "#E8432A",
+  "theme_color": "#E8432A",
+  "icons": [
+    { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "img/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}
