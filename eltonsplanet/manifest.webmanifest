@@ -1,0 +1,17 @@
+{
+  "name": "Eltons Planet",
+  "short_name": "Eltons Planet",
+  "description": "En gudasimulator – skapa, forma och styr din egen värld.",
+  "lang": "sv",
+  "start_url": "./",
+  "scope": "./",
+  "display": "fullscreen",
+  "orientation": "any",
+  "background_color": "#0a1220",
+  "theme_color": "#0d1628",
+  "icons": [
+    { "src": "img/icon-192.png", "sizes": "192x192", "type": "image/png", "purpose": "any" },
+    { "src": "img/icon-512.png", "sizes": "512x512", "type": "image/png", "purpose": "any" },
+    { "src": "img/icon-maskable-512.png", "sizes": "512x512", "type": "image/png", "purpose": "maskable" }
+  ]
+}

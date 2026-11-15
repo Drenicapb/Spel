@@ -37,3 +37,11 @@ Lär dig kosovoalbanska – fraser för vardagen, flashcards, quiz och uttal, me
 
 Android-app: **https://drenicapb.github.io/Spel/app/Shqip.apk** (visar sidan ovan; koden finns i `Privat`, gren `shqip`). Innehållet ligger i `shqip/data.js`.
 Ny version: `python3 shqip/bump.py 1.0.1 "Vad som är nytt"` och pusha – appen visar då *🆕 Ny version – Uppdatera*.
+
+## Eltons Planet
+
+Gudasimulator – forma världen, sätt ut människor och djur och se riken växa, bygga slott och kriga: **https://drenicapb.github.io/Spel/eltonsplanet/**
+
+På iPhone/iPad: öppna länken i Safari → Dela → *Lägg till på hemskärmen* (Android: Chrome → ⋮ → *Lägg till på startskärmen*) så startar det i helskärm med egen ikon och fungerar offline. Spelet sparas automatiskt i webbläsaren på enheten.
+
+Mappen `eltonsplanet/` byggs separat (inte från `Privat`) – låt den vara kvar när Bucinca-filerna kopieras hit. Ny version: ändra `eltonsplanet/index.html` och höj `CACHE` i `eltonsplanet/sw.js`.
