@@ -8,6 +8,7 @@
     if (seen.has(key)) { bad.push(q); continue; }
     if (q.type === 'slider') { if (![q.ans, q.min, q.max, q.step].every(Number.isFinite) || q.min >= q.max || q.ans < q.min || q.ans > q.max) { bad.push(q); continue; } }
     else if (q.type === 'map') { if (!['world', 'europa', 'sverige'].includes(q.map) || !Number.isFinite(q.lat) || !Number.isFinite(q.lon) || !q.place) { bad.push(q); continue; } }
+    else if (q.type === 'order') { const it = (q.items || []).map(x => String(x).trim()); if (it.length < 3 || it.length > 4 || new Set(it.map(x => x.toLowerCase())).size !== it.length || it.some(x => !x)) { bad.push(q); continue; } q.items = it; }
     else if ('tf' in q) { if (typeof q.tf !== 'boolean') { bad.push(q); continue; } }
     else {
       const o = [], low = new Set();

@@ -16,6 +16,15 @@ Mobilerna måste kunna öppna sidan via en webbadress, så mappen behöver ligga
 4. Tryck **Starta quizet ▶**. Snabbt rätt svar ger mest poäng (500–1 000 p), och flera rätt i rad ger bonus 🔥.
 
 Inställningar i lobbyn:
+- **🃏 Jokrar** (på som standard): varje spelare har tre jokrar per quiz – **🌓 50/50** (två fel svar försvinner), **⏱️ +10 s** (tio sekunder extra, bara för den spelaren) och **💰 Stjäl** (svarar du rätt tar du 300 p från den som ligger närmast före dig). Storskärmen visar vem som använde vad.
+- **⭐ En fråga med dubbla poäng** (på som standard): en slumpad fråga i andra halvan ger dubbelt – den annonseras med fanfar.
+- **👥 Lag: Av / 2 / 3 / 4 lag**: spelarna delas jämnt i Röda, Blå, Gula och Gröna (🔀 Blanda gör om fördelningen och sprider ut barnen). Lagets poäng är snittet för spelarna i laget, så det spelar ingen roll om ett lag är större.
+- **🎵 Introläge** (bara när musiken spelas på storskärmen): bara de första 10 sekunderna av låten spelas – resten när svaret visas.
+- **Tryck på en spelare** för att välja **nivå** och **lag**, eller ta bort spelaren. Nivåerna:
+  - 🙂 **Vanlig** – alla alternativ, vanlig tid.
+  - 🌱 **Lättare** – ett fel alternativ mindre och 50 % mer tid; kartan och reglaget räknas snällare.
+  - 🧸 **Barnläge** – bara två alternativ, dubbel tid och ingen stress (snabbhet ger inga extrapoäng).
+  Nivån sparas per namn, så Leon är kvar i barnläge nästa gång. Storskärmen väntar in den som har mer tid ("⏳ Väntar på …").
 - **Visa svarstext på mobilerna**: av = bara färger och former på mobilen, som i Kahoot.
 - **Läs upp frågorna**: för barn som inte läser ännu. Svaren läses upp med färg ("Röd: Banan").
 - **Auto: gå vidare när alla har svarat** (på som standard): när alla har svarat – eller tiden är slut – visas rätt svar, sedan topplistan och nästa fråga, var och en i 5 sekunder. Knappen **⏩ Auto på / ⏸ Auto av** uppe till höger pausar under spelet, och du kan alltid trycka på knappen för att gå vidare direkt.
@@ -30,12 +39,20 @@ Ladda ner **QuizChampions.apk** från https://drenicapb.github.io/Spel/app/QuizC
 I lobbyn visas bara PIN-koden och QR-koden; adressen syns först om man trycker *Visa webbadressen*. Den som har appen öppnar den och skriver PIN-koden, alla andra skannar QR-koden med kameran.
 
 ## Frågetyper som i Kahoot
-Utöver vanliga frågor (4 alternativ, sant/falskt och musik) finns tre egna kategorier:
+Utöver vanliga frågor (4 alternativ, sant/falskt och musik) finns fem egna kategorier:
+- **🏳️ Flaggor**: vilket land har flaggan? Bilden börjar suddig på storskärmen och blir skarpare – svara tidigt för mest poäng. 127 länder (Albanien och Kosovo finns med i barnnivån). Flaggorna kommer från [flag-icons](https://github.com/lipis/flag-icons) (MIT-licens) och ligger i `img/flags/`.
+- **🔢 Sortera i rätt ordning**: tryck på alternativen i ordning – minst till störst, äldst till nyast, norr till söder. Alla rätt ger fullt (snabbt ger mest), annars 150 p för varje alternativ på rätt plats. Frågorna finns i `bank-ordning.js`.
 - **📍 Kartan – sätt ut nålen**: tryck på kartan i mobilen där du tror att platsen ligger (Sverige-, Europa- eller världskarta). Ju närmare, desto mer poäng – storskärmen visar allas nålar och rätt plats.
 - **🕵️ Gissa med ledtrådar**: gissa personen (eller landet, djuret, figuren). Ledtrådarna kommer en i taget på storskärmen, svårast först. Rätt svar efter första ledtråden ger 1 000 p, efter den sista 500 p.
 - **🎯 Närmast rätt svar**: dra i reglaget och gissa ett årtal, en höjd eller ett antal. Exakt (eller nästan) rätt ger fullt, och även den som kommer nära får poäng.
 
-Färdiga quiz: *Kartquiz*, *Gissa personen*, *Närmast vinner* och *Kahoot-mix* (alla typer blandade).
+Färdiga quiz: *Kartquiz*, *Gissa personen*, *Närmast vinner*, *Flaggquiz*, *Sortera rätt* och *Kahoot-mix* (alla typer blandade). Musikfrågorna kan också fråga efter vilket **år** låten kom.
+
+## Topplistan, pallen och statistik
+- Topplistan animeras: raderna glider till sina nya platser, poängen räknas upp och ▲/▼ visar vem som klättrat. I lagläge visas lagen överst.
+- På slutet reser sig pallen en plats i taget (3:an, 2:an, sist vinnaren) med trumvirvel.
+- **📊 Statistik** (på startsidan och efter varje quiz): vinnarliga med vinster, antal spel, snittplacering, andel rätt och vilken kategori var och en är bäst i, plus de senaste spelen. Sparas på värdskärmen (den enhet som visar quizet).
+- **🔊 Volymknappen** uppe till höger på storskärmen växlar mellan högt, mellan, lågt och av.
 
 ## Musikquiz med tema
 Under *Färdiga quiz* finns musikquiz med tema: **Hiphop, 90-talet, 00-talet, Albansk musik, 2Pac och Julmusik**. Varje omgång har 50 frågor – låtar att lyssna på (gissa artist, titel, år eller album) blandat med faktafrågor och "närmast rätt"-årtal. Varje tema har en större pott (från cirka 70 frågor för 2Pac till 900 för hiphop), och appen tar frågor som inte har spelats än först, så det blir nya frågor varje gång man startar. Kända låtar kommer oftare än okända.
@@ -58,10 +75,10 @@ Låtarna: 281 handplockade låtar (`songs.js`) plus cirka 21 400 låtar från et
   Nya frågetyper (se `bank.js`): `num(...)` för närmast rätt, `pin(...)` för kartan och `clue(...)` för ledtrådar – exempel finns i `bank-narmast.js`, `bank-karta.js` och `bank-ledtrad.js`.
 
 ## Bra att veta
-- Spelet behöver internet. Mobilerna hittar storskärmen via PeerJS gratisserver och pratar sedan direkt med den (WebRTC). Det fungerar både på samma wifi och över mobilnätet.
+- **Mobilerna behöver inte vara på samma nät som storskärmen.** Spelet provar först en direktkoppling (WebRTC via PeerJS gratisserver). Går inte den – vilket händer på vissa mobilnät och jobb- eller skolnät – byter mobilen själv till reservvägen: en öppen MQTT-förmedlare över vanlig krypterad webbtrafik (`relay.js`), som kommer igenom alla nät. Storskärmen lyssnar på båda vägarna samtidigt, och lobbyn visar "🌍 Mobilerna kan vara på vilket nät som helst" när reservvägen är igång. Lägg till `?via=relay` i adressen för att tvinga reservvägen (för felsökning).
 - Stäng inte fliken på storskärmen under spelets gång. Om en mobil tappar anslutningen eller laddar om sidan kommer den tillbaka automatiskt med sina poäng.
 - Spelaren som skapar quizet behöver inget konto någonstans.
 
 Loggan och app-ikonen finns i `img/`. På mobilen kan sidan läggas till på hemskärmen (Dela → *Lägg till på hemskärmen*) och får då ikonen.
 
-Innehåll: cirka 7 480 frågor i 16 kategorier och 4 åldersgrupper (bland annat 382 kartfrågor, 188 ledtrådsfrågor och 326 närmast-rätt-frågor), plus cirka 21 600 Spotify-låtar. Kartorna är ritade från Natural Earth (fri data). Appen minns vilka frågor ni redan har fått och tar nya först, och blandar olika sorters frågor så att samma typ inte kommer många gånger i rad.
+Innehåll: cirka 7 900 frågor i 18 kategorier och 4 åldersgrupper (bland annat 382 kartfrågor, 188 ledtrådsfrågor och 326 närmast-rätt-frågor), plus cirka 21 600 Spotify-låtar. Kartorna är ritade från Natural Earth (fri data). Appen minns vilka frågor ni redan har fått och tar nya först, och blandar olika sorters frågor så att samma typ inte kommer många gånger i rad.

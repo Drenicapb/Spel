@@ -68,31 +68,68 @@ function fmtVal(q, v) {
   const s = q.fmt === 'year' ? String(Math.round(v)) : Number(v).toLocaleString('sv-SE', { maximumFractionDigits: (String(q.step).split('.')[1] || '').length });
   return q.unit ? `${s} ${q.unit}` : s;
 }
-const SPECIAL = new Set(['slider', 'map']);          // frågor utan svarsalternativ
-const answerText = q => q.type === 'slider' ? fmtVal(q, q.ans) : q.type === 'map' ? q.place : q.opts[q.correct];
+const SPECIAL = new Set(['slider', 'map', 'order']); // frågor utan ett enda rätt alternativ
+const CHOICE = new Set(['mc', 'tf', 'music', 'clue', 'flag']); // frågor med svarsalternativ
+const answerText = q => q.type === 'slider' ? fmtVal(q, q.ans) : q.type === 'map' ? q.place : q.type === 'order' ? q.ans.map(i => q.opts[i]).join(' → ') : q.opts[q.correct];
+// Nivå per spelare (sätts av värden i lobbyn): färre alternativ, mer tid och snällare poäng för de minsta
+const LEVELS = {
+  normal: { n: 'Vanlig', e: '🙂', d: 'Alla svarsalternativ och vanlig tid.', t: 1, show: 4, len: 1 },
+  easy:   { n: 'Lättare', e: '🌱', d: 'Ett fel svar mindre och 50 % mer tid. Kartan och reglaget är snällare.', t: 1.5, show: 3, len: 1.5 },
+  kid:    { n: 'Barnläge', e: '🧸', d: 'Bara två alternativ, dubbel tid och ingen stress – snabbhet spelar ingen roll.', t: 2, show: 2, len: 2, noSpeed: true },
+};
+const lvl = p => LEVELS[p && p.level] || LEVELS.normal;
+const TEAMS = [
+  { n: 'Röda laget', s: 'Röda', e: '🔴', c: '#e3354f' }, { n: 'Blå laget', s: 'Blå', e: '🔵', c: '#2b7de0' },
+  { n: 'Gula laget', s: 'Gula', e: '🟡', c: '#d69a00' }, { n: 'Gröna laget', s: 'Gröna', e: '🟢', c: '#1f9d55' },
+];
+const JOKERS = {
+  fifty: { e: '🌓', n: '50/50', d: 'Tar bort fel svar så att två är kvar' },
+  time:  { e: '⏱️', n: '+10 s', d: '10 sekunder extra tid för dig' },
+  steal: { e: '💰', n: 'Stjäl', d: 'Svarar du rätt tar du 300 p från den som ligger närmast före dig' },
+};
+const STEAL_PTS = 300, EXTRA_MS = 10000, INTRO_MS = 10000;
+const freshJokers = () => ({ fifty: true, time: true, steal: true });
+// Vilka alternativ en spelare ser (null = alla). Rätt svar är alltid kvar.
+function visibleOpts(q, level) {
+  if (!CHOICE.has(q.type) || q.type === 'tf' || q.opts.length <= 2) return null;
+  const n = (LEVELS[level] || LEVELS.normal).show; if (n >= q.opts.length) return null;
+  const wrong = shuffle(q.opts.map((_, i) => i).filter(i => i !== q.correct)).slice(0, n - 1);
+  return [q.correct, ...wrong].sort((a, b) => a - b);
+}
+const canFifty = (q, show) => CHOICE.has(q.type) && q.type !== 'tf' && (show || q.opts).length > 2;
+function fiftyOpts(q, show) { const vis = show || q.opts.map((_, i) => i); const w = shuffle(vis.filter(i => i !== q.correct)); return [q.correct, w[0]].sort((a, b) => a - b); }
 const clueIdx = (q, ms) => Math.min(q.clues.length - 1, Math.max(0, Math.floor(ms / (q.time * 1000 / q.clues.length))));
 const cluePts = (q, i) => Math.round(1000 - i * 500 / Math.max(1, q.clues.length - 1));
 // Poäng utan svit: rätt/fel, grundpoäng och (för karta/reglage) hur nära
-function grade(q, a, ms) {
+// o: { mult: tidsfaktor för spelarens nivå, extra: extra ms (joker), len: hur snällt karta/reglage räknas, noSpeed }
+function grade(q, a, ms, o = {}) {
   if (!a) return { ok: false, base: 0 };
-  const speed = clamp(1 - (ms / 1000) / q.time, 0, 1);
+  const T = q.time * (o.mult || 1) + (o.extra || 0) / 1000, len = o.len || 1;
+  const speed = o.noSpeed ? 1 : clamp(1 - (ms / 1000) / T, 0, 1);
+  const quick = () => o.noSpeed ? 1000 : clamp(Math.round(1000 * (1 - (ms / 1000) / T / 2)), 500, 1000);
   if (q.type === 'slider') {
-    const err = Math.abs(a.v - q.ans), range = q.max - q.min, ok = err <= q.tol;
-    const acc = clamp(1 - err / (range * 0.25), 0, 1), base = ok ? 1000 : Math.round(850 * acc * acc);
+    const err = Math.abs(a.v - q.ans), range = q.max - q.min, ok = err <= q.tol * len;
+    const acc = clamp(1 - err / (range * 0.25 * len), 0, 1), base = ok ? 1000 : Math.round(850 * acc * acc);
     return { ok, base: Math.round(base * (0.85 + 0.15 * speed)), err };
   }
   if (q.type === 'map') {
-    const M = MAPS[q.map], d = distKm(a, q), ok = d <= (q.okKm || M.ok);
-    const acc = clamp(1 - d / M.far, 0, 1), base = ok ? 1000 : Math.round(850 * acc * acc);
+    const M = MAPS[q.map], d = distKm(a, q), ok = d <= (q.okKm || M.ok) * len;
+    const acc = clamp(1 - d / (M.far * len), 0, 1), base = ok ? 1000 : Math.round(850 * acc * acc);
     return { ok, base: Math.round(base * (0.85 + 0.15 * speed)), km: d };
+  }
+  if (q.type === 'order') {
+    const n = q.ans.length, k = a.o.filter((x, i) => x === q.ans[i]).length, ok = k === n;
+    return { ok, base: ok ? quick() : k * 150, k, n };
   }
   const ok = a.c === q.correct;
   if (!ok) return { ok: false, base: 0 };
   if (q.type === 'clue') return { ok, base: cluePts(q, clueIdx(q, ms)) };
-  return { ok, base: clamp(Math.round(1000 * (1 - (ms / 1000) / q.time / 2)), 500, 1000) };
+  return { ok, base: quick() };
 }
+const gradeOpts = p => { const L = lvl(p); return { mult: L.t, extra: p.extraMs || 0, len: L.len, noSpeed: !!L.noSpeed }; };
 function gradeDetail(q, a, g) {
   if (!a) return '';
+  if (q.type === 'order') return g.ok ? 'Alla i rätt ordning!' : `${g.k} av ${g.n} på rätt plats`;
   if (q.type === 'slider') return g.err === 0 ? `Exakt rätt: ${fmtVal(q, q.ans)}` : `Du svarade ${fmtVal(q, a.v)} – rätt svar ${fmtVal(q, q.ans)}`;
   if (q.type === 'map') return `Din nål var ${fmtKm(g.km)} från ${q.place}`;
   return '';
@@ -152,6 +189,7 @@ function parseAnswer(q, m) {
   if (!m) return null;
   if (q.type === 'slider') { const v = Number(m.v); return isFinite(v) ? { v: clamp(v, q.min, q.max) } : null; }
   if (q.type === 'map') { const lat = Number(m.lat), lon = Number(m.lon); return isFinite(lat) && isFinite(lon) ? { lat: clamp(lat, -90, 90), lon: clamp(lon, -180, 180) } : null; }
+  if (q.type === 'order') { const o = Array.isArray(m.o) ? m.o.map(Number) : []; const n = q.opts.length; return o.length === n && new Set(o).size === n && o.every(x => x >= 0 && x < n) ? { o } : null; }
   const c = Number(m.c); return c >= 0 && c < q.opts.length ? { c } : null;
 }
 function spokenOptions(q) {
@@ -159,6 +197,7 @@ function spokenOptions(q) {
   if (q.type === 'tf') return 'Sant eller falskt?';
   if (q.type === 'slider') return 'Dra i reglaget och gissa så nära du kan.';
   if (q.type === 'map') return 'Sätt ut nålen på kartan.';
+  if (q.type === 'order') return `Sortera: ${q.opts.join(', ')}.`;
   if (q.type === 'clue') return q.opts.map((o, i) => `${col[i]}: ${o}.`).join(' ');
   return q.opts.map((o, i) => `${col[i]}: ${o}.`).join(' ');
 }
@@ -186,15 +225,15 @@ const confirmDlg = (msg, yes = 'Ja', no = 'Avbryt') => dialog(`<p>${esc(msg)}</p
 
 // ───────────────────────── Ljud & tal ─────────────────────────
 const Sound = {
-  ctx: null, on: store.get('sound', true),
+  ctx: null, on: store.get('sound', true), vol: store.get('vol', 1),
   ensure() {
     if (!this.ctx) { try { this.ctx = new (window.AudioContext || window.webkitAudioContext)(); } catch { return null; } }
     if (this.ctx.state === 'suspended') this.ctx.resume().catch(() => {});
     return this.ctx;
   },
   tone(freq, dur = 0.15, type = 'sine', vol = 0.15, when = 0) {
-    if (!this.on) return; const c = this.ensure(); if (!c) return;
-    const t = c.currentTime + Math.max(0, when); const o = c.createOscillator(), g = c.createGain();
+    if (!this.on || !this.vol) return; const c = this.ensure(); if (!c) return;
+    vol *= this.vol; const t = c.currentTime + Math.max(0, when); const o = c.createOscillator(), g = c.createGain();
     o.type = type; o.frequency.setValueAtTime(freq, t);
     g.gain.setValueAtTime(0.0001, t); g.gain.exponentialRampToValueAtTime(vol, t + 0.012); g.gain.exponentialRampToValueAtTime(0.0001, t + dur);
     o.connect(g).connect(c.destination); o.start(t); o.stop(t + dur + 0.05);
@@ -205,7 +244,21 @@ const Sound = {
   timeUp() { this.tone(392, 0.18, 'square', 0.07); this.tone(262, 0.36, 'square', 0.07, 0.16); },
   join() { this.tone(660, 0.08, 'triangle', 0.12); this.tone(990, 0.14, 'triangle', 0.12, 0.07); },
   fanfare() { [392, 523, 659, 784, 659, 784, 1047].forEach((f, i) => this.tone(f, 0.24, 'triangle', 0.15, i * 0.13)); },
+  joker() { [880, 1175, 1568].forEach((f, i) => this.tone(f, 0.12, 'square', 0.06, i * 0.06)); },
+  double() { [523, 784, 1047, 1568, 1047, 1568].forEach((f, i) => this.tone(f, 0.18, 'triangle', 0.16, i * 0.09)); },
+  steal() { this.tone(1568, 0.08, 'square', 0.08); this.tone(1319, 0.08, 'square', 0.08, 0.08); this.tone(988, 0.2, 'square', 0.08, 0.16); },
+  drum(n = 14) { for (let i = 0; i < n; i++) this.tone(90 + Math.random() * 20, 0.07, 'triangle', 0.18, i * 0.07); },
+  // volymknappen: högt → mellan → lågt → av → högt
+  cycle() {
+    const steps = [1, 0.5, 0.2]; if (!this.on) { this.on = true; this.vol = 1; } else { const i = steps.indexOf(this.vol); if (i === steps.length - 1 || i < 0) this.on = false; else this.vol = steps[i + 1]; }
+    store.set('sound', this.on); store.set('vol', this.vol);
+    if (!this.on) Bgm.stop(); else if (!Bgm.timer && ['lobby', 'board'].includes(Host.phase)) Bgm.start('lobby');
+    $$('.vol-btn').forEach(b => b.innerHTML = volIcon()); toast(this.on ? `🔊 Volym ${Math.round(this.vol * 100)} %` : '🔇 Ljudet är av');
+  },
 };
+const volIcon = () => !Sound.on ? '🔇' : Sound.vol >= 1 ? '🔊' : Sound.vol >= 0.5 ? '🔉' : '🔈';
+const volBtn = () => `<button class="btn ghost small vol-btn" title="Volym">${volIcon()}</button>`;
+document.addEventListener('click', e => { if (e.target.closest('.vol-btn')) Sound.cycle(); });
 const Bgm = {
   timer: null, step: 0,
   start(mode = 'lobby') {
@@ -267,14 +320,16 @@ function peerOptions() {
   const o = { debug: 1 };
   const h = params.get('peerhost');
   if (h) { o.host = h; o.port = +(params.get('peerport') || 443); o.path = params.get('peerpath') || '/'; o.secure = params.get('peersecure') !== '0'; }
-  if (params.get('ice') === 'none') o.config = { iceServers: [] };
+  o.config = { iceServers: params.get('ice') === 'none' ? [] : [{ urls: 'stun:stun.l.google.com:19302' }, { urls: 'stun:stun.cloudflare.com:3478' }, { urls: 'stun:global.stun.twilio.com:3478' }] };
   return o;
 }
 const hostPeerId = pin => PEER_PREFIX + pin;
+// via=relay i adressen: hoppa över WebRTC och gå direkt via internetreläet (för felsökning)
+const FORCE_RELAY = params.get('via') === 'relay' || !window.Peer;
 function joinUrl(pin, extra = {}) {
   const p = new URLSearchParams();
-  for (const k of ['peerhost', 'peerport', 'peerpath', 'peersecure', 'ice']) if (params.get(k) != null) p.set(k, params.get(k));
-  p.set('pin', pin); for (const k in extra) p.set(k, extra[k]);
+  for (const k of ['peerhost', 'peerport', 'peerpath', 'peersecure', 'ice', 'via']) if (params.get(k) != null) p.set(k, params.get(k));
+  p.set('pin', pin); if (Host.relayBi) p.set('b', Host.relayBi); for (const k in extra) p.set(k, extra[k]);
   return location.origin + location.pathname + '?' + p.toString();
 }
 const shortUrl = () => (location.host + location.pathname).replace(/index\.html$/, '').replace(/\/$/, '');
@@ -287,13 +342,14 @@ const send = (conn, msg) => { try { if (conn && conn.open) conn.send(msg); } cat
 const songPool = () => [...SONGS, ...store.get('mysongs', [])];
 const bandOf = q => Math.min(...String(q.a || '0123').split('').map(Number));
 function autoTime(type, age, setting) {
-  const min = { music: 20, clue: 24, map: 15, slider: 15 }[type] || 0;
+  const min = { music: 20, clue: 24, map: 15, slider: 15, order: 20, flag: 12 }[type] || 0;
   if (setting && setting !== 'auto') return Math.max(min, +setting);
   const base = { '0': 30, '1': 25, '2': 20, '3': 20, 'f': 25 }[age] ?? 20;
   if (type === 'music') return Math.max(30, base);
   if (type === 'clue') return 32;
   if (type === 'map') return base + 10;
   if (type === 'slider') return base + 5;
+  if (type === 'order') return base + 10;
   return type === 'tf' ? Math.max(10, base - 5) : base;
 }
 // Sprid frågorna så att samma frågemall (q.g) inte kommer tätt efter varandra; handskrivna frågor väger lite tyngre
@@ -327,6 +383,7 @@ const SONG_FILMS = ['Frost', 'Frost 2', 'Vaiana', 'Lejonkungen', 'Encanto', 'Den
 function musicQuestion(s, age, all) {
   const variants = age === '0' ? ['title', 'artist'] : ['artist', 'title', 'artist', 'title'];
   if (s.y && age !== '0') variants.push('decade');
+  if (s.y && s.y >= 1960 && !['0', '1'].includes(age)) variants.push('year');
   if (s.fi) variants.push('film', 'film');
   let v = variants[Math.floor(Math.random() * variants.length)];
   // Felsvar: låtar från ungefär samma tid (och helst samma genre) – ett urval räcker även med 20 000 låtar
@@ -335,7 +392,10 @@ function musicQuestion(s, age, all) {
   const near = list => list.map(x => ({ x, k: Math.abs(yr(x) - yr(s)) + Math.random() * 18 + (s.g && x.g && x.g !== s.g ? 12 : 0) + (x.p != null && x.p < 35 ? 8 : 0) })).sort((a, b) => a.k - b.k).map(o => o.x);
   const pickUnique = (key) => { const seen = new Set([String(s[key]).toLowerCase()]); const out = []; for (const x of near(sample)) { const val = String(x[key]); if (!seen.has(val.toLowerCase())) { seen.add(val.toLowerCase()); out.push(val); } if (out.length === 3) break; } return out; };
   let text, right, wrong;
-  if (v === 'film') {
+  if (v === 'year') {
+    const near = shuffle([-4, -3, -2, -1, 1, 2, 3, 4].map(d => s.y + d).filter(y => y <= new Date().getFullYear())).slice(0, 3);
+    text = 'Vilket år kom låten? 🎧'; right = String(s.y); wrong = near.map(String);
+  } else if (v === 'film') {
     const base = x => String(x).replace(/\s*\d+$/, '').toLowerCase();
     const cands = shuffle([...new Set([...all.map(x => x.fi).filter(Boolean), ...SONG_FILMS])]).filter(f => base(f) !== base(s.fi));
     text = 'Från vilken film kommer låten? 🎬'; right = s.fi; wrong = cands.slice(0, 3);
@@ -400,6 +460,11 @@ function bankToRuntime(q, o) {
     if (q.type === 'slider') return { ...base, type: 'slider', ans: q.ans, min: q.min, max: q.max, step: q.step || 1, unit: q.unit || '', fmt: q.fmt, tol: q.tol ?? Math.max(q.step || 1, (q.max - q.min) * 0.01), opts: [], correct: -1, time: autoTime('slider', o.age, o.time) };
     if (q.type === 'map') return { ...base, type: 'map', map: q.map, lat: q.lat, lon: q.lon, place: q.place, okKm: q.ok, opts: [], correct: -1, time: autoTime('map', o.age, o.time) };
     if (q.type === 'clue') { const idx = shuffle(q.o.map((_, i) => i)); return { ...base, type: 'clue', clues: q.clues, opts: idx.map(i => q.o[i]), correct: idx.indexOf(0), time: autoTime('clue', o.age, o.time) }; }
+    if (q.type === 'flag') { const idx = shuffle(q.o.map((_, i) => i)); return { ...base, type: 'flag', img: q.img, opts: idx.map(i => q.o[i]), correct: idx.indexOf(0), time: autoTime('flag', o.age, o.time) }; }
+    if (q.type === 'order') {
+      let idx = shuffle(q.items.map((_, i) => i)); while (idx.every((x, i) => x === i)) idx = shuffle(idx);
+      return { ...base, type: 'order', opts: idx.map(i => q.items[i]), ans: q.items.map((_, pos) => idx.indexOf(pos)), lab: q.lab || ['Först', 'Sist'], correct: -1, time: autoTime('order', o.age, o.time) };
+    }
     if ('tf' in q) return { id, type: 'tf', cat: q.c, band: bandOf(q), text: q.q, opts: ['Sant', 'Falskt'], correct: q.tf ? 0 : 1, time: autoTime('tf', o.age, o.time) };
     const idx = shuffle(q.o.map((_, i) => i));
     return { id, type: 'mc', cat: q.c, band: bandOf(q), text: q.q, opts: idx.map(i => q.o[i]), correct: idx.indexOf(0), time: autoTime('mc', o.age, o.time) };
@@ -511,7 +576,9 @@ const PRESETS = [
   { id: 'karta', e: '📍', n: 'Kartquiz', d: 'Sätt ut nålen på kartan – städer, länder och platser i Sverige, Europa och världen.', o: { age: 'f', cats: ['karta'], count: 10, diff: 'mix', time: 'auto', title: '📍 Kartquiz' } },
   { id: 'ledtradar', e: '🕵️', n: 'Gissa personen', d: 'Personer, länder, djur och figurer – ledtrådarna kommer en i taget. Ju tidigare du svarar, desto mer poäng.', o: { age: 'f', cats: ['ledtrad'], count: 10, diff: 'mix', time: 'auto', title: '🕵️ Gissa personen' } },
   { id: 'narmast', e: '🎯', n: 'Närmast vinner', d: 'Gissa årtal, höjder och antal med reglaget – närmast rätt får mest poäng.', o: { age: 'f', cats: ['narmast'], count: 10, diff: 'mix', time: 'auto', title: '🎯 Närmast vinner' } },
-  { id: 'mix', e: '🎪', n: 'Kahoot-mix', d: 'Alla frågetyper blandat: karta, ledtrådar, närmast rätt, musik och vanliga frågor.', o: { age: 'f', cats: ['karta', 'ledtrad', 'narmast', 'spotify', 'geo', 'film', 'sport', 'hist'], count: 16, diff: 'mix', time: 'auto', title: '🎪 Kahoot-mix' } },
+  { id: 'flaggor', e: '🏳️', n: 'Flaggquiz', d: 'Vilket land har flaggan? Bilden börjar suddig och blir skarpare – svara tidigt för mest poäng.', o: { age: 'f', cats: ['flagga'], count: 12, diff: 'mix', time: 'auto', title: '🏳️ Flaggquiz' } },
+  { id: 'sortera', e: '🔢', n: 'Sortera rätt', d: 'Tryck i rätt ordning: minst till störst, äldst till nyast, norr till söder …', o: { age: 'f', cats: ['ordning'], count: 10, diff: 'mix', time: 'auto', title: '🔢 Sortera rätt' } },
+  { id: 'mix', e: '🎪', n: 'Kahoot-mix', d: 'Alla frågetyper blandat: karta, ledtrådar, närmast rätt, flaggor, sortera, musik och vanliga frågor.', o: { age: 'f', cats: ['karta', 'ledtrad', 'narmast', 'flagga', 'ordning', 'spotify', 'geo', 'film', 'sport', 'hist'], count: 18, diff: 'mix', time: 'auto', title: '🎪 Kahoot-mix' } },
   { id: 'snabb', e: '⚡', n: 'Blixtquiz', d: '10 frågor, 10 sekunder per fråga. Snabbast vinner!', o: { age: 'f', cats: Object.keys(CATS).filter(c => c !== 'spotify'), count: 10, diff: 'easy', time: 10, title: '⚡ Blixtquiz' } },
 ];
 
@@ -536,7 +603,7 @@ const Sp = {
         this.api.createController($('#spEmbedInner'), { uri, width: '100%', height: 152, theme: 'dark' }, ctrl => {
           this.ctrl = ctrl; this.ensureAllow();
           ctrl.addListener('ready', () => { this.ready = true; finish(); });
-          ctrl.addListener('playback_update', e => { const p = !(e && e.data && e.data.isPaused); if (p !== this.playing) { this.playing = p; this.dock().classList.toggle('sp-playing', p); if (p) this.hideHint(); } });
+          ctrl.addListener('playback_update', e => { const p = !(e && e.data && e.data.isPaused); if (p !== this.playing) { this.playing = p; this.dock().classList.toggle('sp-playing', p); if (p) { this.hideHint(); this.startIntro(); } } });
           setTimeout(finish, 4000);
         });
       } catch { res(null); }
@@ -555,8 +622,14 @@ const Sp = {
     if (!track || this.ctrl) return;
     const api = await this.load(); if (api && !this.ctrl) await this.makeCtrl('spotify:track:' + track.id);
   },
-  async play(track) {
-    this.track = track; this.playing = false; const d = this.dock();
+  // Introläge: bara de första sekunderna spelas, resten först när svaret visas
+  startIntro() {
+    if (!this.introMs || this.introT || this.introDone) return; const tr = this.track;
+    this.introT = setTimeout(() => { this.introT = null; if (this.track !== tr || this.dock().classList.contains('revealed')) return; this.introDone = true; try { this.ctrl.pause(); } catch {} this.dock().classList.add('sp-intro'); }, this.introMs);
+  },
+  async play(track, introMs = 0) {
+    clearTimeout(this.introT); this.introT = null; this.introMs = introMs; this.introDone = false;
+    this.track = track; this.playing = false; const d = this.dock(); d.classList.remove('sp-intro');
     d.classList.remove('revealed', 'sp-playing', 'sp-failed', 'sp-hint'); d.classList.add('show');
     $('#spLink').href = spotifyLink(track.id);
     placeDock();
@@ -571,8 +644,8 @@ const Sp = {
     clearTimeout(this.hintT); this.hintT = setTimeout(() => { if (!this.playing && this.track === track) d.classList.add('sp-hint'); }, 3500);
   },
   hideHint() { clearTimeout(this.hintT); this.dock().classList.remove('sp-hint'); },
-  reveal() { this.dock().classList.add('revealed'); this.hideHint(); },
-  stop() { this.track = null; clearTimeout(this.hintT); try { this.ctrl && this.ctrl.pause(); } catch {} const d = this.dock(); d.classList.remove('show', 'revealed', 'sp-hint', 'sp-failed', 'sp-playing'); placeDock(); },
+  reveal() { clearTimeout(this.introT); this.introT = null; this.dock().classList.add('revealed'); this.dock().classList.remove('sp-intro'); this.hideHint(); if (this.introDone) { this.introDone = false; try { this.ctrl.resume(); } catch {} } },
+  stop() { clearTimeout(this.introT); this.introT = null; this.introMs = 0; this.track = null; clearTimeout(this.hintT); try { this.ctrl && this.ctrl.pause(); } catch {} const d = this.dock(); d.classList.remove('show', 'revealed', 'sp-hint', 'sp-failed', 'sp-playing'); placeDock(); },
 };
 function placeDock() {
   const d = Sp.dock(), slot = $('#mediaSlot');
@@ -587,8 +660,8 @@ const Host = {
   peer: null, pin: null, quiz: null, players: new Map(), djs: new Set(), phase: 'idle', qi: -1,
   qStart: 0, deadline: 0, answers: new Map(), tickT: null, phaseT: null, hbT: null, settings: null, lastSecond: null,
 
-  defaults() { return Object.assign({ showText: true, tts: false, auto: true, music: 'screen' }, store.get('hostSettings2', {})); },
-  saveSettings() { store.set('hostSettings2', { showText: this.settings.showText, auto: this.settings.auto, music: this.settings.music }); },
+  defaults() { return Object.assign({ showText: true, tts: false, auto: true, music: 'screen', jokers: true, double: true, teams: 0, intro: false }, store.get('hostSettings2', {})); },
+  saveSettings() { const s = this.settings; store.set('hostSettings2', { showText: s.showText, auto: s.auto, music: s.music, jokers: s.jokers, double: s.double, teams: s.teams, intro: s.intro }); },
   // Auto-läge: när alla har svarat (eller tiden är slut) visas svaret, sedan topplistan och nästa fråga – utan att någon trycker
   autoMs() { const q = this.quiz && this.quiz.questions[this.qi]; return this.phase === 'reveal' ? (q && q.type === 'music' ? 7000 : 5000) : 5000; },
   scheduleAuto() {
@@ -611,40 +684,69 @@ const Host = {
   open(quiz, extra = {}) {
     this.quiz = quiz;
     this.settings = Object.assign(this.defaults(), { tts: quiz.age === '0' }, extra);
-    if (this.peer && !this.peer.destroyed && this.peer.open) { this.toLobby(true); return; }
-    if (this.peer) { try { this.peer.destroy(); } catch {} this.peer = null; }
+    if (this.isOpen()) { this.toLobby(true); return; }
+    this.closeTransports();
     this.players.clear(); this.djs.clear();
     renderHostConnecting();
+    // Två vägar in samtidigt: WebRTC (PeerJS, direkt mellan enheterna) och internetreläet (MQTT över wss://).
+    // Lobbyn öppnas så fort en av dem är redo; mobilerna provar WebRTC först och tar reläet om direktkopplingen inte går.
     const tryOpen = (attempt = 0) => {
-      this.pin = String(100000 + Math.floor(Math.random() * 900000));
-      const peer = new Peer(hostPeerId(this.pin), peerOptions()); this.peer = peer;
-      peer.on('open', () => { if (this.peer === peer) { this.toLobby(false); this.startHeartbeat(); } });
-      peer.on('connection', c => this.onConn(c));
-      peer.on('disconnected', () => { if (this.peer === peer && !peer.destroyed) setTimeout(() => { try { peer.reconnect(); } catch {} }, 1000); });
-      peer.on('error', err => {
-        if (this.peer !== peer) return;
-        if (err.type === 'unavailable-id' && attempt < 5) { peer.destroy(); tryOpen(attempt + 1); return; }
-        if (this.phase === 'idle') renderHostError(err);
-        else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type)) toast('Tappade kontakten med servern – försöker igen…');
+      const gen = this.gen = (this.gen || 0) + 1;
+      this.pin = String(100000 + Math.floor(Math.random() * 900000)); this.relayBi = 0;
+      const st = this.net = { peer: FORCE_RELAY ? 'off' : 'wait', relay: 'wait' };
+      const ready = () => {
+        if (this.gen !== gen) return;
+        if (this.phase === 'idle') { this.toLobby(false); this.startHeartbeat(); } else updateNetStatus();
+      };
+      const failed = () => {
+        if (this.gen !== gen) return;
+        updateNetStatus();
+        if (this.phase === 'idle' && st.relay === 'fail' && st.peer !== 'wait' && st.peer !== 'ok') renderHostError({ type: 'Kom inte ut på internet' });
+      };
+      const retry = () => { if (this.gen !== gen) return; this.closeTransports(); if (attempt < 5) tryOpen(attempt + 1); else renderHostError({ type: 'PIN' }); };
+      if (!FORCE_RELAY) {
+        const peer = new Peer(hostPeerId(this.pin), peerOptions()); this.peer = peer;
+        peer.on('open', () => { if (this.peer === peer) { st.peer = 'ok'; ready(); } });
+        peer.on('connection', c => this.onConn(c));
+        peer.on('disconnected', () => { if (this.peer === peer && !peer.destroyed && st.peer === 'ok') setTimeout(() => { try { peer.reconnect(); } catch {} }, 1000); });
+        peer.on('error', err => {
+          if (this.peer !== peer) return;
+          if (err.type === 'unavailable-id' && this.phase === 'idle') { retry(); return; }
+          if (st.peer === 'wait') { st.peer = 'fail'; failed(); }
+          else if (['network', 'server-error', 'socket-error', 'socket-closed'].includes(err.type) && st.relay !== 'ok') toast('Tappade kontakten med servern – försöker igen…');
+        });
+        setTimeout(() => { if (this.gen === gen && st.peer === 'wait') { st.peer = 'fail'; failed(); } }, 12000);
+      }
+      this.relay = new QCRelay.RelayHost(this.pin, {
+        onConn: c => this.onConn(c),
+        onReady: bi => { this.relayBi = bi; st.relay = 'ok'; ready(); },
+        onFail: () => { st.relay = 'fail'; failed(); },
+        onTaken: () => { if (this.phase === 'idle' || (this.phase === 'lobby' && !this.players.size)) { this.phase = 'idle'; retry(); } },
       });
     };
     tryOpen();
+  },
+  isOpen() { return !!((this.peer && !this.peer.destroyed && this.peer.open) || (this.relay && this.relay.ready && !this.relay.dead)); },
+  closeTransports() {
+    try { this.peer && this.peer.destroy(); } catch {} this.peer = null;
+    try { this.relay && this.relay.destroy(); } catch {} this.relay = null;
   },
   close() {
     this.stopTimers(); clearInterval(this.hbT); Bgm.stop(); Sp.stop(); Speech.stop();
     for (const p of this.players.values()) send(p.conn, { t: 'bye' });
     for (const c of this.djs) send(c, { t: 'bye' });
-    setTimeout(() => { try { this.peer && this.peer.destroy(); } catch {} this.peer = null; }, 200);
+    const peer = this.peer, relay = this.relay; this.peer = this.relay = null; this.gen = (this.gen || 0) + 1;
+    setTimeout(() => { try { peer && peer.destroy(); } catch {} try { relay && relay.destroy(); } catch {} }, 200);
     this.players.clear(); this.djs.clear(); this.phase = 'idle'; this.quiz = null;
   },
   stopTimers() { clearInterval(this.tickT); clearTimeout(this.phaseT); clearInterval(this.cdT); this.tickT = this.phaseT = this.cdT = null; },
   toLobby(keepPlayers) {
     this.stopTimers(); Sp.stop(); Speech.stop();
     this.phase = 'lobby'; this.qi = -1;
-    if (keepPlayers) for (const p of this.players.values()) Object.assign(p, { score: 0, streak: 0, lastRes: null, lastPts: 0 });
+    if (keepPlayers) for (const p of this.players.values()) Object.assign(p, { score: 0, prev: 0, streak: 0, lastRes: null, lastPts: 0, jokers: freshJokers() });
     renderLobby(); Bgm.start('lobby'); keepAwake();
     this.preloadMusic();
-    this.broadcast({ t: 'lobby', count: this.onlineCount(), title: this.quiz.title });
+    this.broadcastLobby();
     this.sendDj();
   },
   startHeartbeat() {
@@ -676,6 +778,7 @@ const Host = {
     if (p) { p.seen = Date.now(); if (!p.online && p.conn === conn) { p.online = true; this.refreshPlayers(); } }
     if (m.t === 'hello') return this.onHello(conn, m);
     if (m.t === 'ans') return this.onAnswer(conn, m);
+    if (m.t === 'joker') return this.onJoker(conn, m);
   },
   onHello(conn, m) {
     if (m.role === 'dj') {
@@ -696,21 +799,29 @@ const Host = {
     }
     const isNew = !p;
     const avatar = String(m.avatar || '🙂').slice(0, 8);
-    if (!p) { p = { cid, name, avatar, score: 0, streak: 0, lastRes: null, lastPts: 0 }; this.players.set(cid, p); }
+    if (!p) {
+      p = { cid, name, avatar, score: 0, streak: 0, lastRes: null, lastPts: 0, right: 0, seenQ: 0, cats: {}, jokers: freshJokers(), level: (store.get('levels', {})[name.toLowerCase()]) || 'normal', team: null };
+      this.players.set(cid, p);
+      if (this.settings.teams) p.team = this.smallestTeam();
+    }
     else { p.name = name; p.avatar = avatar; }
     if (p.conn && p.conn !== conn) { try { p.conn.close(); } catch {} }
     p.conn = conn; p.online = true; p.seen = Date.now(); conn._cid = cid;
-    send(conn, { t: 'welcome', role: 'player', pin: this.pin, title: this.quiz.title, total: this.quiz.questions.length, showText: this.settings.showText, you: { name: p.name, avatar: p.avatar, score: p.score } });
+    send(conn, { t: 'welcome', role: 'player', pin: this.pin, title: this.quiz.title, total: this.quiz.questions.length, showText: this.settings.showText, you: { name: p.name, avatar: p.avatar, score: p.score }, ...this.meMsg(p) });
     this.syncPlayer(p);
     if (isNew) { Sound.join(); if (this.phase === 'lobby') bumpPlayer(cid); }
     this.refreshPlayers();
   },
+  // Lag & nivå som mobilen visar i sidhuvudet
+  meMsg(p) { const t = this.settings.teams && p.team != null ? TEAMS[p.team] : null; return { team: t ? { e: t.e, n: t.n, i: p.team } : null, level: p.level }; },
+  lobbyMsg(p) { return { t: 'lobby', count: this.onlineCount(), title: this.quiz.title, ...this.meMsg(p) }; },
+  broadcastLobby() { for (const p of this.players.values()) send(p.conn, this.lobbyMsg(p)); },
   syncPlayer(p) {
     const q = this.quiz.questions[this.qi];
     switch (this.phase) {
-      case 'lobby': send(p.conn, { t: 'lobby', count: this.onlineCount(), title: this.quiz.title }); break;
+      case 'lobby': send(p.conn, this.lobbyMsg(p)); break;
       case 'ready': send(p.conn, this.readyMsg(q)); break;
-      case 'question': send(p.conn, this.answers.has(p.cid) ? { t: 'ack', qi: this.qi } : this.questionMsg(q)); break;
+      case 'question': send(p.conn, this.answers.has(p.cid) ? { t: 'ack', qi: this.qi } : this.questionMsg(q, p)); break;
       case 'reveal': case 'board': send(p.conn, p.lastRes && p.lastRes.qi === this.qi ? p.lastRes : { t: 'wait' }); break;
       case 'end': send(p.conn, this.endMsg(p)); break;
     }
@@ -718,7 +829,7 @@ const Host = {
   onlineCount() { return [...this.players.values()].filter(p => p.online).length; },
   broadcast(msg) { for (const p of this.players.values()) send(p.conn, msg); },
   refreshPlayers() {
-    if (this.phase === 'lobby') { updateLobbyPlayers(); this.broadcast({ t: 'lobby', count: this.onlineCount(), title: this.quiz.title }); }
+    if (this.phase === 'lobby') { updateLobbyPlayers(); this.broadcastLobby(); }
     else if (this.phase === 'question') updateAnswerCount();
   },
   kick(cid) {
@@ -726,21 +837,66 @@ const Host = {
     send(p.conn, { t: 'kicked' }); setTimeout(() => { try { p.conn && p.conn.close(); } catch {} }, 300);
     this.players.delete(cid); this.refreshPlayers();
   },
-  readyMsg(q) { return { t: 'ready', qi: this.qi, total: this.quiz.questions.length, cat: q.cat, type: q.type, text: q.text, showText: this.settings.showText }; },
-  questionMsg(q) {
-    const m = { t: 'q', qi: this.qi, total: this.quiz.questions.length, type: q.type, n: q.opts.length, opts: this.settings.showText ? q.opts : null, text: q.text, time: q.time, left: Math.max(0, this.deadline - Date.now()) };
+  // ── Lag ──
+  smallestTeam() {
+    const n = this.settings.teams, cnt = Array(n).fill(0);
+    for (const p of this.players.values()) if (p.team != null && p.team < n) cnt[p.team]++;
+    const min = Math.min(...cnt), c = cnt.map((x, i) => x === min ? i : -1).filter(i => i >= 0);
+    return c[Math.floor(Math.random() * c.length)];
+  },
+  // Blanda lagen jämnt: barn och nybörjare sprids ut först, sedan resten
+  shuffleTeams() {
+    const n = this.settings.teams; if (!n) { for (const p of this.players.values()) p.team = null; return; }
+    const order = { kid: 0, easy: 1, normal: 2 };
+    const list = shuffle([...this.players.values()]).sort((a, b) => order[a.level] - order[b.level]);
+    const start = Math.floor(Math.random() * n);
+    list.forEach((p, i) => { p.team = (start + i) % n; });
+  },
+  setTeams(n) {
+    this.settings.teams = n; this.saveSettings();
+    if (n) { for (const p of this.players.values()) if (p.team == null || p.team >= n) p.team = null; for (const p of this.players.values()) if (p.team == null) p.team = this.smallestTeam(); }
+    else for (const p of this.players.values()) p.team = null;
+  },
+  teamStandings() {
+    const n = this.settings.teams; if (!n) return [];
+    const out = TEAMS.slice(0, n).map((t, i) => {
+      const m = [...this.players.values()].filter(p => p.team === i);
+      const score = m.length ? Math.round(m.reduce((a, p) => a + p.score, 0) / m.length) : 0;
+      const prev = m.length ? Math.round(m.reduce((a, p) => a + (p.prev ?? p.score), 0) / m.length) : 0;
+      return { i, t, m, score, prev };
+    }).filter(x => x.m.length).sort((a, b) => b.score - a.score);
+    let rank = 0, last = null; out.forEach((x, k) => { if (x.score !== last) { rank = k + 1; last = x.score; } x.rank = rank; });
+    return out;
+  },
+  setLevel(cid, level) {
+    const p = this.players.get(cid); if (!p || !LEVELS[level]) return;
+    p.level = level; const lv = store.get('levels', {}); if (level === 'normal') delete lv[p.name.toLowerCase()]; else lv[p.name.toLowerCase()] = level; store.set('levels', lv);
+    send(p.conn, this.lobbyMsg(p));
+  },
+  readyMsg(q) { return { t: 'ready', qi: this.qi, total: this.quiz.questions.length, cat: q.cat, type: q.type, text: q.text, showText: this.settings.showText, dbl: this.qi === this.doubleQi }; },
+  questionMsg(q, p) {
+    const now = Date.now(), L = lvl(p);
+    const m = { t: 'q', qi: this.qi, total: this.quiz.questions.length, type: q.type, n: q.opts.length, opts: this.settings.showText ? q.opts : null, text: q.text,
+      time: q.time * L.t + (p.extraMs || 0) / 1000, left: Math.max(0, (p.qDeadline || this.deadline) - now), show: p.show || null, dbl: this.qi === this.doubleQi };
+    if (this.settings.jokers) {
+      const avail = { fifty: p.jokers.fifty && canFifty(q, p.show), time: p.jokers.time, steal: p.jokers.steal && this.players.size > 1 };
+      m.jok = { avail, used: { ...(p.jq || {}) } };
+    }
     if (q.type === 'slider') Object.assign(m, { min: q.min, max: q.max, step: q.step, unit: q.unit, fmt: q.fmt });
     if (q.type === 'map') m.map = q.map;
+    if (q.type === 'order') m.lab = q.lab;
     if (q.type === 'clue') { m.nClues = q.clues.length; if (this.settings.showText) m.clues = q.clues; }
     return m;
   },
   endMsg(p) {
     const ranked = this.ranked(); const r = ranked.find(x => x.p === p);
-    return { t: 'end', rank: r ? r.rank : ranked.length, of: ranked.length, score: p.score, top: ranked.slice(0, 3).map(x => ({ name: x.p.name, avatar: x.p.avatar, score: x.p.score })) };
+    const ts = this.teamStandings(), mine = ts.find(x => x.i === p.team);
+    return { t: 'end', rank: r ? r.rank : ranked.length, of: ranked.length, score: p.score, right: p.right, top: ranked.slice(0, 3).map(x => ({ name: x.p.name, avatar: x.p.avatar, score: x.p.score })),
+      team: mine ? { e: mine.t.e, n: mine.t.n, rank: mine.rank, of: ts.length, score: mine.score } : null };
   },
-  ranked() {
-    const list = [...this.players.values()].sort((a, b) => b.score - a.score);
-    let rank = 0, prev = null; return list.map((p, i) => { if (p.score !== prev) { rank = i + 1; prev = p.score; } return { p, rank }; });
+  ranked(key = 'score') {
+    const list = [...this.players.values()].sort((a, b) => (b[key] ?? b.score) - (a[key] ?? a.score));
+    let rank = 0, prev = null; return list.map((p, i) => { const v = p[key] ?? p.score; if (v !== prev) { rank = i + 1; prev = v; } return { p, rank }; });
   },
   sendDj(only) {
     const q = this.quiz && this.quiz.questions[this.qi];
@@ -753,89 +909,149 @@ const Host = {
 
   start() {
     if (!this.players.size) { toast('Vänta tills minst en spelare har anslutit 📱'); return; }
-    Sound.ensure(); this.qi = -1;
-    for (const p of this.players.values()) Object.assign(p, { score: 0, streak: 0, lastRes: null, lastPts: 0 });
+    Sound.ensure(); this.qi = -1; this.gameId = uid(); this.saved = false; this.feed = [];
+    for (const p of this.players.values()) Object.assign(p, { score: 0, prev: 0, streak: 0, lastRes: null, lastPts: 0, right: 0, seenQ: 0, cats: {}, jokers: freshJokers(), jq: {}, extraMs: 0 });
+    if (this.settings.teams) for (const p of this.players.values()) if (p.team == null) p.team = this.smallestTeam();
+    // Dubbla poäng: en slumpad fråga i andra halvan
+    const n = this.quiz.questions.length;
+    this.doubleQi = this.settings.double && n >= 4 ? Math.floor(n / 2) + Math.floor(Math.random() * (n - Math.floor(n / 2))) : -1;
     this.next();
   },
   next() {
     this.stopTimers(); Speech.stop();
     this.qi++;
     if (this.qi >= this.quiz.questions.length) return this.finish();
-    const q = this.quiz.questions[this.qi];
-    this.answers = new Map(); this.phase = 'ready';
+    const q = this.quiz.questions[this.qi], dbl = this.qi === this.doubleQi;
+    this.answers = new Map(); this.phase = 'ready'; this.feed = [];
     let ms = q.type === 'music' ? 4500 : clamp(1800 + q.text.length * 40, 3000, 7000);
     if (this.settings.tts) ms = Math.max(ms, clamp(q.text.length * 75, 2500, 9500));
+    if (dbl) ms += 2500;
     renderHostReady(q, ms);
     this.broadcast(this.readyMsg(q));
+    if (q.type === 'flag' && q.img) { const im = new Image(); im.src = q.img; }
     if (q.type === 'music') {
       Bgm.stop();
-      if (q.track && this.settings.music === 'screen') Sp.play(q.track); else Sp.stop();
+      if (q.track && this.settings.music === 'screen') Sp.play(q.track, this.settings.intro ? INTRO_MS : 0); else Sp.stop();
       this.sendDj();
     } else { Sp.stop(); Bgm.start('lobby'); this.sendDj(); }
-    if (this.settings.tts) Speech.speak(q.text);
+    if (dbl) { Bgm.stop(); Sound.double(); }
+    if (this.settings.tts) Speech.speak((dbl ? 'Dubbla poäng! ' : '') + q.text);
     this.phaseT = setTimeout(() => this.showQuestion(), ms);
   },
   showQuestion() {
     if (this.phase !== 'ready') return;
     this.stopTimers();
     const q = this.quiz.questions[this.qi];
-    this.phase = 'question'; this.qStart = performance.now(); this.deadline = Date.now() + q.time * 1000; this.lastSecond = null;
+    this.phase = 'question'; this.qStart = performance.now(); this.qWall = Date.now(); this.deadline = this.qWall + q.time * 1000; this.lastSecond = null;
+    for (const p of this.players.values()) {
+      p.extraMs = 0; p.jq = {}; p.steal = false; p.qDeadline = this.qWall + q.time * 1000 * lvl(p).t;
+      p.show = visibleOpts(q, p.level);
+    }
     renderHostQuestion(q);
     if (q.type !== 'music') Bgm.start('q');
     if (this.settings.tts && q.type !== 'music') Speech.speak(spokenOptions(q));
     this.clueShown = -1;
-    for (const p of this.players.values()) send(p.conn, this.questionMsg(q));
+    for (const p of this.players.values()) send(p.conn, this.questionMsg(q, p));
     this.tickT = setInterval(() => this.tick(), 200); this.tick();
   },
   tick() {
-    const left = Math.max(0, this.deadline - Date.now()); const sec = Math.ceil(left / 1000);
-    const q = this.quiz.questions[this.qi];
+    const now = Date.now(), q = this.quiz.questions[this.qi];
+    let left = Math.max(0, this.deadline - now), waitTxt = '';
+    if (left <= 0) {
+      // Tiden är slut för de flesta – men barn, "lättare" och den som tog +10 s får vänta klart
+      const wait = [...this.players.values()].filter(p => p.online && !this.answers.has(p.cid) && p.qDeadline > now);
+      if (!wait.length) { this.endQuestion(); return; }
+      left = Math.max(...wait.map(p => p.qDeadline)) - now;
+      waitTxt = `⏳ Väntar på ${wait.slice(0, 3).map(p => `${p.avatar} ${p.name}`).join(', ')}${wait.length > 3 ? ` +${wait.length - 3}` : ''}`;
+    }
+    const sec = Math.ceil(left / 1000);
     const el = $('#timerNum'); if (el) el.textContent = sec;
-    const ring = $('#timerRing'); if (ring) ring.style.setProperty('--p', (left / (q.time * 1000)).toFixed(4));
+    const ring = $('#timerRing'); if (ring) { ring.style.setProperty('--p', clamp(left / (q.time * 1000), 0, 1).toFixed(4)); ring.classList.toggle('extra', !!waitTxt); }
+    const wn = $('#waitNote'); if (wn && wn.textContent !== waitTxt) wn.textContent = waitTxt;
     if (q.type === 'clue') {
-      const i = clueIdx(q, q.time * 1000 - left);
+      const i = clueIdx(q, now - this.qWall);
       if (i !== this.clueShown) {
         this.clueShown = i; updateClues(q, i);
         if (this.settings.tts) Speech.speak(q.clues[i]);
       }
     }
     if (sec !== this.lastSecond) { this.lastSecond = sec; if (sec <= 5 && sec > 0) Sound.tick(); }
-    if (left <= 0) this.endQuestion();
   },
   allAnswered() { const on = [...this.players.values()].filter(p => p.online); return on.length > 0 && on.every(p => this.answers.has(p.cid)); },
   endSoon() { if (this.phase === 'question' && !this.phaseT) this.phaseT = setTimeout(() => { this.phaseT = null; this.endQuestion(); }, 500); },
   onAnswer(conn, m) {
     const p = this.players.get(conn._cid);
     if (!p || this.phase !== 'question' || m.qi !== this.qi || this.answers.has(p.cid)) { if (p && m.qi === this.qi && this.answers.has(p.cid)) send(conn, { t: 'ack', qi: this.qi }); return; }
+    if (Date.now() > (p.qDeadline || this.deadline) + 1200) return; // för sent
     const q = this.quiz.questions[this.qi];
     const a = parseAnswer(q, m); if (!a) return;
+    if (p.show && 'c' in a && !p.show.includes(a.c)) return;
     this.answers.set(p.cid, { ...a, ms: performance.now() - this.qStart });
     send(conn, { t: 'ack', qi: this.qi });
     updateAnswerCount();
     if (this.allAnswered()) this.endSoon();
   },
+  onJoker(conn, m) {
+    const p = this.players.get(conn._cid), k = m.k;
+    if (!p || !this.settings.jokers || this.phase !== 'question' || m.qi !== this.qi || this.answers.has(p.cid) || !JOKERS[k] || !p.jokers[k]) return;
+    const q = this.quiz.questions[this.qi];
+    if (k === 'fifty') { if (!canFifty(q, p.show)) return; p.show = fiftyOpts(q, p.show); }
+    if (k === 'time') { p.qDeadline += EXTRA_MS; p.extraMs += EXTRA_MS; }
+    if (k === 'steal') { if (this.players.size < 2) return; p.steal = true; }
+    p.jokers[k] = false; p.jq[k] = true;
+    send(conn, { t: 'jok', qi: this.qi, k, show: p.show, left: Math.max(0, p.qDeadline - Date.now()), time: q.time * lvl(p).t + p.extraMs / 1000 });
+    this.addFeed(`${p.avatar} ${p.name} använde ${JOKERS[k].e} ${JOKERS[k].n}`);
+    Sound.joker();
+  },
+  addFeed(txt) {
+    this.feed.push(txt);
+    const f = $('#jokerFeed'); if (!f) return;
+    const li = document.createElement('li'); li.textContent = txt; f.appendChild(li);
+    while (f.children.length > 4) f.firstChild.remove();
+  },
   endQuestion() {
     if (this.phase !== 'question') return;
     this.stopTimers(); Bgm.stop();
-    const q = this.quiz.questions[this.qi];
+    const q = this.quiz.questions[this.qi], dbl = this.qi === this.doubleQi, mul = dbl ? 2 : 1;
     this.phase = 'reveal';
     const dist = q.opts.map(() => 0), guesses = [];
+    // placering före frågan – för pilarna på topplistan
+    this.ranked().forEach(({ p }, i) => { p.prevIdx = i; });
+    const teamsBefore = this.teamStandings().map(t => t.i);
     for (const p of this.players.values()) {
-      const a = this.answers.get(p.cid), g = grade(q, a, a ? a.ms : 0); let pts = g.base;
+      const a = this.answers.get(p.cid), g = grade(q, a, a ? a.ms : 0, gradeOpts(p)); let pts = g.base;
       if (a && !SPECIAL.has(q.type)) dist[a.c]++;
       if (a && SPECIAL.has(q.type)) guesses.push({ ...a, ...g, label: p.avatar, name: p.name });
       if (g.ok) { p.streak++; pts += Math.min(p.streak - 1, 5) * 100; } else p.streak = 0;
-      p.prev = p.score; p.score += pts; p.lastPts = pts; p.lastOk = g.ok; p.answered = !!a; p.lastDetail = gradeDetail(q, a, g);
+      pts *= mul;
+      p.prev = p.score; p.score += pts; p.lastPts = pts; p.lastOk = g.ok; p.answered = !!a; p.lastDetail = gradeDetail(q, a, g); p.stole = p.robbed = null;
+      if (a || p.online) { p.seenQ++; if (g.ok) p.right++; const c = q.cat || 'egen'; const cs = p.cats[c] || (p.cats[c] = [0, 0]); cs[1]++; if (g.ok) cs[0]++; }
+      p._ms = a ? a.ms : Infinity;
     }
-    const ranked = this.ranked();
+    // Stölder: den som svarade rätt med 💰 tar poäng från den som ligger närmast före (inte i samma lag)
+    const steals = [];
+    for (const p of [...this.players.values()].filter(x => x.steal).sort((a, b) => a._ms - b._ms)) {
+      if (!p.lastOk) { p.stole = { fail: true }; continue; }
+      const ranked = this.ranked().map(r => r.p), i = ranked.indexOf(p);
+      const victim = ranked.slice(0, i).reverse().find(v => v.score > p.score && v.score > 0 && (!this.settings.teams || v.team !== p.team));
+      if (!victim) { p.stole = { none: true }; continue; }
+      const amt = Math.min(STEAL_PTS * mul, victim.score);
+      victim.score -= amt; victim.lastPts -= amt; p.score += amt; p.lastPts += amt;
+      p.stole = { name: victim.name, avatar: victim.avatar, amt }; victim.robbed = { name: p.name, avatar: p.avatar, amt };
+      steals.push(`💰 ${p.avatar} ${p.name} stal ${fmt(amt)} p från ${victim.avatar} ${victim.name}!`);
+    }
+    if (steals.length) setTimeout(() => Sound.steal(), 900);
+    const ranked = this.ranked(), ts = this.teamStandings();
     ranked.forEach(({ p, rank }, i) => {
-      const ahead = i > 0 ? ranked[i - 1].p : null;
+      const ahead = i > 0 ? ranked[i - 1].p : null, mine = ts.find(x => x.i === p.team);
       p.lastRes = { t: 'res', qi: this.qi, kind: q.type, ok: p.lastOk, answered: p.answered, pts: p.lastPts, score: p.score, streak: p.streak, rank, of: ranked.length,
-        ahead: ahead && ahead.score > p.score ? { name: ahead.name, gap: ahead.score - p.score } : null, correctText: answerText(q), detail: p.lastDetail, last: this.qi === this.quiz.questions.length - 1 };
+        ahead: ahead && ahead.score > p.score ? { name: ahead.name, gap: ahead.score - p.score } : null, correctText: answerText(q), detail: p.lastDetail, last: this.qi === this.quiz.questions.length - 1,
+        dbl, stole: p.stole, robbed: p.robbed, team: mine ? { e: mine.t.e, n: mine.t.n, rank: mine.rank, of: ts.length, up: teamsBefore.indexOf(mine.i) - ts.indexOf(mine) } : null };
       send(p.conn, p.lastRes);
     });
     if (q.type === 'music') Sp.reveal();
     this.sendDj();
+    this.lastSteals = steals;
     renderHostQuestion(q, dist, guesses);
     Sound.timeUp(); setTimeout(() => Sound.correct(), 350);
     this.scheduleAuto();
@@ -849,10 +1065,11 @@ const Host = {
   finish() {
     this.stopTimers(); Sp.stop(); Speech.stop(); Bgm.stop();
     this.phase = 'end';
-    renderPodium();
+    const wins = Stats.save(this);
+    renderPodium(wins);
     for (const p of this.players.values()) send(p.conn, this.endMsg(p));
     this.sendDj();
-    Sound.fanfare(); setTimeout(() => confetti(), 1600);
+    Sound.drum(18); setTimeout(() => Sound.fanfare(), 2900); setTimeout(() => confetti(), 3100);
   },
 };
 
@@ -881,13 +1098,14 @@ function renderHome() {
         <button class="btn primary" type="submit">Gå med</button>
       </form>
     </div>
-    <button class="btn ghost" id="goEdit">✏️ Mina quiz &amp; låtar</button>
+    <div class="row center home-links"><button class="btn ghost" id="goEdit">✏️ Mina quiz &amp; låtar</button><button class="btn ghost" id="goStats">📊 Statistik</button></div>
     <p class="foot">${homeFoot()}</p>
     ${!IN_APP && /Android/i.test(navigator.userAgent) ? `<a class="btn ghost small" href="${APK_URL}" download>📲 Ladda ner Android-appen</a>` : ''}
   </div>`, 'scr-home');
   $('#goHost').onclick = () => renderSetup('gen', 'host');
   $('#goSolo').onclick = () => renderSetup('gen', 'solo');
   $('#goEdit').onclick = () => Editor.list();
+  $('#goStats').onclick = () => renderStats();
   $('#joinForm').onsubmit = e => { e.preventDefault(); const pin = $('#pinIn').value.replace(/\D/g, ''); if (pin.length !== 6) { toast('PIN-koden har 6 siffror'); return; } renderJoin(pin); };
 }
 
@@ -895,7 +1113,7 @@ let setupState = store.get('setup', { age: 'f', cats: Object.keys(CATS).filter(c
 let setupMode = 'host';
 function renderSetup(tab = 'gen', mode = setupMode) {
   setupMode = mode; const solo = mode === 'solo';
-  const s = setupState; const keep = !solo && Host.peer && Host.peer.open;
+  const s = setupState; const keep = !solo && Host.isOpen();
   const go = (quiz, extra = {}) => solo ? Solo.start(quiz, extra) : Host.open(quiz, extra);
   const chip = (on, attrs, label) => `<button class="chip ${on ? 'on' : ''}" ${attrs}>${label}</button>`;
   const tabs = `<div class="tabs">${[['gen', '✨ Skapa quiz'], ['pre', '📦 Färdiga quiz'], ['mine', '✏️ Mina quiz']].map(([k, l]) => `<button class="tab ${tab === k ? 'on' : ''}" data-tab="${k}">${l}</button>`).join('')}</div>`;
@@ -946,7 +1164,7 @@ function renderHostError(err) {
   setScreen(`<div class="center-screen"><div class="big-emoji">📡</div><h2>Kunde inte skapa spelrummet</h2>
   <p class="muted">Kontrollera att du har internet och försök igen.<br><small>(${esc(err && err.type || err)})</small></p>
   <div class="row"><button class="btn ghost" id="back">← Tillbaka</button><button class="btn primary" id="retry">Försök igen</button></div></div>`);
-  const quiz = Host.quiz; $('#back').onclick = () => { Host.close(); renderHome(); }; $('#retry').onclick = () => { Host.peer = null; Host.open(quiz); };
+  const quiz = Host.quiz; $('#back').onclick = () => { Host.close(); renderHome(); }; $('#retry').onclick = () => { Host.closeTransports(); Host.open(quiz); };
 }
 
 function renderLobby() {
@@ -965,10 +1183,12 @@ function renderLobby() {
         <div class="pin" aria-label="PIN-kod">${pinTxt}</div>
         <div class="qr">${qrSvg(url)}</div>
         <button class="link small show-url" id="showUrl">Visa webbadressen</button>
+        <p class="net-status" id="netStatus">${netStatusHtml()}</p>
         ${local ? '<p class="warn">⚠️ Sidan är öppnad som fil. Lägg upp den på en webbadress (t.ex. GitHub Pages) så att mobilerna kan öppna den.</p>' : ''}
       </section>
       <section class="lob-players">
-        <div class="pcount"><b id="pCount">0</b> spelare <span class="muted small" id="pHint">– tryck på en spelare för att ta bort</span></div>
+        <div class="pcount"><b id="pCount">0</b> spelare <span class="muted small" id="pHint">– tryck på en spelare för nivå${s.teams ? ', lag' : ''} eller ta bort</span></div>
+        ${s.teams ? `<div class="team-bar" id="teamBar"></div>` : ''}
         <div class="plist" id="pList"></div>
         <div class="waiting" id="pWait"><div class="dots"><i></i><i></i><i></i></div>Väntar på spelare…</div>
         ${music && s.music === 'dj' ? `<aside class="dj-card"><div class="qr small">${qrSvg(joinUrl(H.pin, { dj: 1 }))}</div><div><b>🎧 DJ-mobil</b><p>Skanna med mobilen som har Spotify. Den mobilen spelar låtarna (koppla gärna till en högtalare) och är inte med och tävlar.</p><p class="dj-status" id="djStatus"></p></div></aside>` : ''}
@@ -980,6 +1200,10 @@ function renderLobby() {
         ${tog('tts', 'Läs upp frågorna', s.tts)}
         ${tog('auto', 'Auto: gå vidare när alla har svarat', s.auto)}
         ${tog('sound', 'Ljud', Sound.on)}
+        ${tog('jokers', '🃏 Jokrar (50/50, +10 s, stjäl)', s.jokers)}
+        ${tog('double', '⭐ En fråga med dubbla poäng', s.double)}
+        ${music && s.music === 'screen' ? tog('intro', '🎵 Introläge: bara 10 sekunder musik', s.intro) : ''}
+        <div class="music-mode team-mode"><span>👥 Lag:</span>${[[0, 'Av'], [2, '2 lag'], [3, '3 lag'], [4, '4 lag']].map(([n, l]) => `<button class="chip ${+s.teams === n ? 'on' : ''}" data-teams="${n}">${l}</button>`).join('')}${s.teams ? '<button class="chip" id="shuffleTeams">🔀 Blanda</button>' : ''}</div>
         ${music ? `<div class="music-mode"><span>🎧 Musiken spelas:</span>
           <button class="chip ${s.music === 'screen' ? 'on' : ''}" data-music="screen">På den här skärmen</button>
           <button class="chip ${s.music === 'dj' ? 'on' : ''}" data-music="dj">I Spotify-appen på en mobil</button></div>` : ''}
@@ -996,19 +1220,45 @@ function renderLobby() {
     const k = i.dataset.set;
     if (k === 'sound') { Sound.on = i.checked; store.set('sound', Sound.on); if (Sound.on) Bgm.start('lobby'); else Bgm.stop(); return; }
     s[k] = i.checked; H.saveSettings();
-    if (k === 'showText') H.broadcast({ t: 'lobby', count: H.onlineCount(), title: H.quiz.title });
+    if (k === 'showText') H.broadcastLobby();
   });
+  $$('[data-teams]').forEach(b => b.onclick = () => { H.setTeams(+b.dataset.teams); renderLobby(); H.broadcastLobby(); });
+  $('#shuffleTeams') && ($('#shuffleTeams').onclick = () => { H.shuffleTeams(); updateLobbyPlayers(); H.broadcastLobby(); toast('🔀 Lagen är blandade'); });
   $$('[data-music]').forEach(b => b.onclick = () => { s.music = b.dataset.music; H.saveSettings(); renderLobby(); H.preloadMusic(); });
-  $('#pList').onclick = e => {
-    const el = e.target.closest('[data-cid]'); if (!el) return;
-    if (el.classList.contains('arm')) H.kick(el.dataset.cid);
-    else { $$('.pchip.arm').forEach(x => x.classList.remove('arm')); el.classList.add('arm'); setTimeout(() => el.classList.remove('arm'), 2500); }
-  };
+  $('#pList').onclick = e => { const el = e.target.closest('[data-cid]'); if (el) playerDialog(el.dataset.cid); };
 }
+// Tryck på en spelare i lobbyn: välj nivå och lag, eller ta bort
+async function playerDialog(cid) {
+  const H = Host, p = H.players.get(cid); if (!p) return;
+  const lvHtml = () => Object.entries(LEVELS).map(([k, L]) => `<button class="chip lvl ${p.level === k ? 'on' : ''}" data-lv="${k}">${L.e} ${L.n}</button>`).join('');
+  const tmHtml = () => TEAMS.slice(0, H.settings.teams).map((t, i) => `<button class="chip ${p.team === i ? 'on' : ''}" data-tm="${i}">${t.e} ${t.s}</button>`).join('');
+  const pr = dialog(`<div class="pdlg"><div class="pdlg-head"><span class="av">${esc(p.avatar)}</span><b>${esc(p.name)}</b></div>
+    <h4>Nivå</h4><div class="chips" id="dLv">${lvHtml()}</div><p class="muted small" id="dLvD">${esc(lvl(p).d)}</p>
+    ${H.settings.teams ? `<h4>Lag</h4><div class="chips" id="dTm">${tmHtml()}</div>` : ''}</div>`,
+    [{ label: 'Ta bort spelaren', value: 'kick', cls: 'ghost danger-t' }, { label: 'Klar', value: 'ok', cls: 'primary' }]);
+  const box = $$('.modal').pop();
+  box.addEventListener('click', e => {
+    const lv = e.target.closest('[data-lv]'), tm = e.target.closest('[data-tm]');
+    if (lv) { H.setLevel(cid, lv.dataset.lv); $('#dLv', box).innerHTML = lvHtml(); $('#dLvD', box).textContent = lvl(p).d; updateLobbyPlayers(); }
+    if (tm) { p.team = +tm.dataset.tm; $('#dTm', box).innerHTML = tmHtml(); updateLobbyPlayers(); send(p.conn, H.lobbyMsg(p)); }
+  });
+  const v = await pr;
+  if (v === 'kick' && await confirmDlg(`Ta bort ${p.name} från spelet?`, 'Ta bort')) H.kick(cid);
+}
+function netStatusHtml() {
+  const n = Host.net || {};
+  if (n.relay === 'ok') return '🌍 Mobilerna kan vara på vilket nät som helst – wifi eller mobildata';
+  if (n.peer === 'ok') return n.relay === 'fail' ? '📶 Direktanslutning – reservvägen över internet svarar inte just nu' : '⏳ Startar reservvägen över internet…';
+  return '';
+}
+function updateNetStatus() { const el = $('#netStatus'); if (el) el.innerHTML = netStatusHtml(); }
 function updateLobbyPlayers() {
   const list = $('#pList'); if (!list) return;
   const ps = [...Host.players.values()];
-  list.innerHTML = ps.map(p => `<button class="pchip ${p.online ? '' : 'off'}" data-cid="${esc(p.cid)}"><span class="av">${esc(p.avatar)}</span><span class="nm">${esc(p.name)}</span><span class="x">✕</span></button>`).join('');
+  const teams = Host.settings.teams;
+  list.innerHTML = ps.map(p => `<button class="pchip ${p.online ? '' : 'off'}" data-cid="${esc(p.cid)}" ${teams && p.team != null ? `style="--tc:${TEAMS[p.team].c}"` : ''}><span class="av">${esc(p.avatar)}</span><span class="nm">${esc(p.name)}</span>${p.level !== 'normal' ? `<span class="lvb" title="${esc(lvl(p).n)}">${lvl(p).e}</span>` : ''}${teams && p.team != null ? `<span class="tmb">${TEAMS[p.team].e}</span>` : ''}</button>`).join('');
+  const tb = $('#teamBar');
+  if (tb) tb.innerHTML = TEAMS.slice(0, teams).map((t, i) => { const n = ps.filter(p => p.team === i).length; return `<span class="tchip" style="--tc:${t.c}">${t.e} ${t.s} <b>${n}</b></span>`; }).join('');
   $('#pCount').textContent = ps.length;
   $('#pWait').style.display = ps.length ? 'none' : '';
   $('#pHint').style.display = ps.length ? '' : 'none';
@@ -1019,7 +1269,8 @@ function updateDjStatus() { const el = $('#djStatus'); if (el) el.innerHTML = Ho
 function hostHeader(q) {
   const H = Host, cat = CATS[q.cat] || { e: '📝', n: 'Eget quiz' };
   const age = H.quiz.age === 'f' && q.band != null && q.type !== 'music' ? `<span class="age-badge">${AGES[String(q.band)].e} ${AGES[String(q.band)].fr}</span>` : '';
-  return `<header class="hq-top"><span class="qnum">${H.qi + 1}<small>/${H.quiz.questions.length}</small></span><span class="catchip">${cat.e} ${esc(cat.n)}</span>${age}<span class="grow"></span>${autoBtn()}<button class="btn ghost small" id="endGame">Avsluta</button></header>`;
+  const dbl = H.qi === H.doubleQi ? '<span class="dbl-chip">⭐ ×2</span>' : '';
+  return `<header class="hq-top"><span class="qnum">${H.qi + 1}<small>/${H.quiz.questions.length}</small></span><span class="catchip">${cat.e} ${esc(cat.n)}</span>${age}${dbl}<span class="grow"></span>${volBtn()}${autoBtn()}<button class="btn ghost small" id="endGame">Avsluta</button></header>`;
 }
 const autoLabel = () => Host.settings && Host.settings.auto ? '⏩ Auto på' : '⏸ Auto av';
 const autoBtn = () => `<button class="btn ghost small auto-tog ${Host.settings.auto ? 'on' : ''}" title="Gå vidare automatiskt när alla har svarat">${autoLabel()}</button>`;
@@ -1037,9 +1288,10 @@ function updateCountdown(sec, ms) {
 function renderHostReady(q, ms) {
   const H = Host;
   setScreen(`
-  <div class="hq ready ${q.type === 'music' ? 'is-music' : ''}">
+  <div class="hq ready ${q.type === 'music' ? 'is-music' : ''} ${H.qi === H.doubleQi ? 'is-double' : ''}">
     ${hostHeader(q)}
     <div class="ready-body">
+      ${H.qi === H.doubleQi ? '<div class="double-banner">⭐ DUBBLA POÄNG ⭐</div>' : ''}
       ${typeBadge(q.type)}
       <h1 class="qtext big">${esc(q.text)}</h1>
       ${q.type === 'music' ? `<div id="mediaSlot" class="media-slot">${musicSlotInner(q)}</div>` : ''}
@@ -1051,7 +1303,7 @@ function renderHostReady(q, ms) {
   $('.ready-body').onclick = () => H.showQuestion();
   if (q.type === 'music') placeDock();
 }
-const TYPE_BADGE = { music: '🎧 Musikfråga – lyssna!', map: '📍 Kartfråga – sätt ut nålen!', slider: '🎯 Närmast rätt svar vinner', clue: '🕵️ Ledtrådar – svara tidigt för mest poäng' };
+const TYPE_BADGE = { music: '🎧 Musikfråga – lyssna!', map: '📍 Kartfråga – sätt ut nålen!', slider: '🎯 Närmast rätt svar vinner', clue: '🕵️ Ledtrådar – svara tidigt för mest poäng', flag: '🏳️ Flaggfråga – bilden blir skarpare!', order: '🔢 Sortera i rätt ordning' };
 const typeBadge = t => TYPE_BADGE[t] ? `<div class="music-badge ${t !== 'music' ? 'kind-badge' : ''}">${TYPE_BADGE[t]}</div>` : '';
 function musicSlotInner(q) {
   if (!q.track) return '<div class="dj-wait">⚠️ Ingen Spotify-låt angiven för frågan</div>';
@@ -1088,7 +1340,13 @@ function renderHostQuestion(q, dist, guesses = []) {
     center = reveal ? `<div class="map-answer">📍 <b>${esc(q.place)}</b></div>${nearList(q, guesses)}` : `<div class="hq-hint">📍 Sätt ut nålen på kartan i mobilen!<small>${esc(MAPS[q.map].n)}</small></div>`;
     const pins = reveal ? [...guesses.map(g => ({ lat: g.lat, lon: g.lon, label: g.label, cls: 'guess' })), { lat: q.lat, lon: q.lon, cls: 'answer', label: '⭐' }] : [];
     below = `<div class="hq-map">${mapHtml(q, pins)}</div>`;
+  } else if (q.type === 'flag') {
+    center = flagHtml(q, reveal, q.time);
+  } else if (q.type === 'order') {
+    center = reveal ? orderResult(guesses) : `<div class="hq-hint">🔢 Tryck i rätt ordning på mobilen<small>${esc(q.lab[0])} → ${esc(q.lab[1])}</small></div>`;
+    below = reveal ? orderAnswerHtml(q) : orderTiles(q);
   }
+  const steals = reveal && H.lastSteals && H.lastSteals.length ? `<ul class="steal-list">${H.lastSteals.map(t => `<li>${esc(t)}</li>`).join('')}</ul>` : '';
   setScreen(`
   <div class="hq ${reveal ? 'revealed' : ''} ${q.type === 'music' ? 'is-music' : ''} t-${q.type}">
     ${hostHeader(q)}
@@ -1098,6 +1356,7 @@ function renderHostQuestion(q, dist, guesses = []) {
       <div class="hq-media">${center}${!center ? `<div class="hq-deco">${(CATS[q.cat] || { e: '❓' }).e}</div>` : ''}</div>
       <div class="ans-count"><b id="ansNum">${answered}</b><small id="ansOf">av ${total} svar</small></div>
     </div>
+    ${reveal ? steals : `<div class="wait-note" id="waitNote"></div><ul class="joker-feed" id="jokerFeed">${(H.feed || []).map(t => `<li>${esc(t)}</li>`).join('')}</ul>`}
     ${below}
     ${reveal ? `<div class="hq-next"><button class="btn primary big" id="nextBtn">${last ? 'Resultatet' : 'Topplistan'}<span class="cd"></span> ${last ? '🏆' : '▶'}</button></div>` : `<div class="hq-next"><button class="btn ghost small" id="skipBtn">Hoppa över tiden ⏭</button></div>`}
   </div>`, 'scr-host');
@@ -1106,50 +1365,165 @@ function renderHostQuestion(q, dist, guesses = []) {
   else $('#skipBtn').onclick = () => H.endQuestion();
   if (q.type === 'music') placeDock();
 }
+// Flaggbild: suddig i början och skarpare för varje sekund
+function flagHtml(q, reveal, time, since = 0) {
+  const gone = since ? Math.max(0, (Date.now() - since) / 1000) : 0;
+  return `<div class="flag-wrap ${reveal ? 'clear' : ''}"><img class="flag-img" src="${esc(q.img)}" alt="Flagga" draggable="false" style="--ft:${Math.round(time * 0.75)}s;--fd:-${gone.toFixed(2)}s"></div>`;
+}
+function orderTiles(q) {
+  return `<div class="opts n${q.opts.length} order-tiles">${q.opts.map((o, i) => `<div class="opt-tile c${i}"><span class="shape">${SHAPES[i]}</span><span class="otext">${esc(o)}</span></div>`).join('')}</div>`;
+}
+function orderAnswerHtml(q) {
+  return `<ol class="order-ans">${q.ans.map((i, pos) => `<li class="c${i}" style="--d:${pos * 220}ms"><span class="num">${pos + 1}</span><span class="shape">${SHAPES[i]}</span><span class="otext">${esc(q.opts[i])}</span></li>`).join('')}</ol>
+    <div class="order-labs"><span>⬆ ${esc(q.lab[0])}</span><span>${esc(q.lab[1])} ⬇</span></div>`;
+}
+function orderResult(guesses) {
+  const all = guesses.filter(g => g.ok);
+  if (!guesses.length) return '<p class="muted center">Ingen hann svara</p>';
+  return `<div class="order-res"><b>${all.length}</b> av ${guesses.length} hade alla rätt${all.length ? `<small>${all.slice(0, 6).map(g => esc(g.label + ' ' + g.name)).join(' · ')}</small>` : ''}</div>`;
+}
 function updateAnswerCount() {
   const n = $('#ansNum'); if (!n) return;
   n.textContent = Host.answers.size; $('#ansOf').textContent = `av ${Host.players.size} svar`;
   n.classList.remove('bump'); void n.offsetWidth; n.classList.add('bump');
 }
 function renderHostBoard() {
-  const H = Host, ranked = H.ranked(), top = ranked.slice(0, 5), max = Math.max(1, ...top.map(r => r.p.score));
+  const H = Host, ranked = H.ranked(), N = 6, top = ranked.slice(0, N), max = Math.max(1, ...top.map(r => r.p.score));
+  const ts = H.teamStandings(), tmax = Math.max(1, ...ts.map(t => t.score));
+  const prevTeams = [...ts].sort((a, b) => b.prev - a.prev).map(t => t.i);
+  const arrow = d => d > 0 ? `<span class="mv up">▲${d}</span>` : d < 0 ? `<span class="mv down">▼${-d}</span>` : '';
+  const teamHtml = ts.length ? `<div class="team-board">${ts.map((t, k) => `<div class="tb-row" data-flip="t${t.i}" data-old="${prevTeams.indexOf(t.i)}" style="--tc:${t.t.c}">
+      <span class="tb-n">${t.t.e} ${esc(t.t.s)}</span><span class="tb-av">${t.m.map(p => esc(p.avatar)).join('')}</span>
+      <span class="barw"><i style="--w:${(t.score / tmax * 100).toFixed(1)}%"></i></span><span class="sc" data-from="${t.prev}" data-to="${t.score}">${fmt(t.prev)}</span>${arrow(prevTeams.indexOf(t.i) - k)}</div>`).join('')}</div>` : '';
   setScreen(`
-  <div class="board">
-    <header class="bar"><span class="muted">Fråga ${H.qi + 1} av ${H.quiz.questions.length}</span><h2>🏆 Topplistan</h2><span class="row">${autoBtn()}<button class="btn ghost small" id="endGame">Avsluta</button></span></header>
-    <ol class="ranks">${top.map(({ p, rank }, i) => `
-      <li style="--d:${i * 90}ms"><span class="rk">${rank}</span><span class="av">${esc(p.avatar)}</span>
-        <span class="nm">${esc(p.name)}${p.streak >= 2 ? ` <span class="streak">🔥${p.streak}</span>` : ''}</span>
+  <div class="board ${ts.length ? 'with-teams' : ''}">
+    <header class="bar"><span class="muted">Fråga ${H.qi + 1} av ${H.quiz.questions.length}</span><h2>🏆 Topplistan</h2><span class="row">${volBtn()}${autoBtn()}<button class="btn ghost small" id="endGame">Avsluta</button></span></header>
+    ${teamHtml}
+    <ol class="ranks" id="ranks">${top.map(({ p, rank }, i) => `
+      <li data-flip="${esc(p.cid)}" data-old="${p.prevIdx ?? i}" ${ts.length && p.team != null ? `style="--tc:${TEAMS[p.team].c}" class="has-team"` : ''}><span class="rk">${rank}</span><span class="av">${esc(p.avatar)}</span>
+        <span class="nm">${esc(p.name)}${p.streak >= 2 ? ` <span class="streak">🔥${p.streak}</span>` : ''}${p.stole && p.stole.amt ? ' <span class="streak">💰</span>' : ''}${arrow((p.prevIdx ?? i) - i)}</span>
         <span class="barw"><i style="--w:${(p.score / max * 100).toFixed(1)}%"></i></span>
-        <span class="sc">${fmt(p.score)}${p.lastPts ? `<small>+${fmt(p.lastPts)}</small>` : ''}</span></li>`).join('')}</ol>
-    ${ranked.length > 5 ? `<p class="muted center">…och ${ranked.length - 5} till</p>` : ''}
+        <span class="sc"><span class="num" data-from="${p.prev ?? p.score}" data-to="${p.score}">${fmt(p.prev ?? p.score)}</span>${p.lastPts ? `<small class="${p.lastPts < 0 ? 'neg' : ''}">${p.lastPts > 0 ? '+' : ''}${fmt(p.lastPts)}</small>` : ''}</span></li>`).join('')}</ol>
+    ${ranked.length > N ? `<p class="muted center">…och ${ranked.length - N} till</p>` : ''}
     <div class="hq-next"><button class="btn primary big" id="nextBtn">Nästa fråga<span class="cd"></span> ▶</button></div>
-  </div>`, 'scr-host');
+  </div>`, 'scr-host board-anim');
   bindEndGame();
   $('#nextBtn').onclick = () => H.next();
+  animateBoard();
 }
-function renderPodium() {
-  const H = Host, ranked = H.ranked(), [a, b, c] = ranked;
-  const col = (r, cls, medal) => r ? `<div class="pod ${cls}"><div class="pav">${esc(r.p.avatar)}</div><div class="pname">${esc(r.p.name)}</div><div class="pscore">${fmt(r.p.score)} p</div><div class="pblock"><span>${medal}</span></div></div>` : `<div class="pod ${cls} empty"></div>`;
+// Topplistan: raderna glider från förra placeringen till den nya och poängen räknas upp
+function animateBoard() {
+  const groups = [$$('#ranks > li'), $$('.team-board .tb-row')];
+  for (const rows of groups) {
+    if (!rows.length) continue;
+    const h = rows.length > 1 ? rows[1].getBoundingClientRect().top - rows[0].getBoundingClientRect().top : rows[0].offsetHeight + 10;
+    rows.forEach((el, i) => {
+      const old = Math.min(+el.dataset.old, rows.length + 1), d = (old - i) * h;
+      el.style.transition = 'none'; el.style.transform = `translateY(${d}px)`; if (old >= rows.length) el.style.opacity = '0';
+    });
+    requestAnimationFrame(() => requestAnimationFrame(() => rows.forEach((el, i) => {
+      el.style.transition = `transform .9s cubic-bezier(.3,1.25,.5,1) ${600 + i * 60}ms, opacity .5s ${600 + i * 60}ms`; el.style.transform = ''; el.style.opacity = '';
+    })));
+  }
+  const nums = $$('[data-from][data-to]'), t0 = performance.now() + 350, dur = 1300;
+  (function step(t) {
+    const k = clamp((t - t0) / dur, 0, 1), e = 1 - (1 - k) ** 3;
+    for (const n of nums) { if (!n.isConnected) return; n.textContent = fmt(+n.dataset.from + (+n.dataset.to - +n.dataset.from) * e); }
+    if (k < 1) requestAnimationFrame(step);
+  })(performance.now());
+}
+function renderPodium(wins = {}) {
+  const H = Host, ranked = H.ranked(), [a, b, c] = ranked, ts = H.teamStandings(), wt = ts[0];
+  const col = (r, cls, medal) => r ? `<div class="pod ${cls}"><div class="pav">${esc(r.p.avatar)}</div><div class="pname">${esc(r.p.name)}</div><div class="pscore"><span data-from="0" data-to="${r.p.score}">0</span> p</div><div class="pblock"><span>${medal}</span></div></div>` : `<div class="pod ${cls} empty"></div>`;
+  const tie = ts.length > 1 && ts[1].score === wt.score;
+  const title = wt ? (tie ? 'Oavgjort mellan lagen!' : `${esc(wt.t.n)} vinner!`) : a ? `${esc(a.p.name)} vinner!` : 'Slut!';
+  const winNote = a && wins[a.p.name.toLowerCase()] > 1 ? `<p class="win-note">🏅 ${esc(a.p.name)}s vinst nummer ${wins[a.p.name.toLowerCase()]}</p>` : '';
   setScreen(`
-  <div class="podium-screen">
+  <div class="podium-screen ${wt ? 'teams' : ''}">
     <img class="pod-emblem" src="img/emblem.webp" alt="">
-    <h1 class="win-title">${a ? `${esc(a.p.name)} vinner!` : 'Slut!'}</h1>
+    <h1 class="win-title">${title}</h1>
+    ${wt ? `<div class="team-final">${ts.map(t => `<div class="tf ${t.rank === 1 ? 'win' : ''}" style="--tc:${t.t.c}"><b>${t.rank}. ${t.t.e} ${esc(t.t.s)}</b><span>${t.m.map(p => esc(p.avatar)).join(' ')}</span><em>${fmt(t.score)} p i snitt</em></div>`).join('')}</div><h3 class="pod-sub">Bästa spelarna</h3>` : ''}
     <div class="podium">${col(b, 'p2', '🥈')}${col(a, 'p1', '🥇')}${col(c, 'p3', '🥉')}</div>
+    ${winNote}
     ${ranked.length > 3 ? `<ol class="rest" start="4">${ranked.slice(3).map(r => `<li><span>${esc(r.p.avatar)} ${esc(r.p.name)}</span><b>${fmt(r.p.score)}</b></li>`).join('')}</ol>` : ''}
     <div class="row center">
       <button class="btn primary big" id="again">🔁 Spela igen (nya frågor)</button>
       <button class="btn ghost" id="newQuiz">Välj annat quiz</button>
+      <button class="btn ghost" id="stats">📊 Statistik</button>
       <button class="btn ghost" id="home">Avsluta</button>
     </div>
   </div>`, 'scr-host');
+  // Poängen räknas upp när respektive pallplats reser sig (3:an, 2:an, sist 1:an)
+  [['.p3', 300], ['.p2', 1200], ['.p1', 2600]].forEach(([sel, at]) => setTimeout(() => {
+    const el = $(`.pod${sel} [data-to]`); if (!el) return; const to = +el.dataset.to, t0 = performance.now();
+    (function step(t) { const k = clamp((t - t0) / 900, 0, 1); if (!el.isConnected) return; el.textContent = fmt(to * (1 - (1 - k) ** 3)); if (k < 1) requestAnimationFrame(step); })(t0);
+  }, at));
   $('#again').onclick = () => {
     const g = H.quiz.gen; const quiz = g ? buildQuiz({ ...g }) : H.quiz;
     H.quiz = quiz; H.toLobby(true);
   };
   $('#newQuiz').onclick = () => { Bgm.stop(); renderSetup('gen'); };
+  $('#stats').onclick = () => renderStats(() => renderPodium(wins));
   $('#home').onclick = () => { H.close(); renderHome(); };
 }
 
+
+// ═════════════════════════ STATISTIK ═════════════════════════
+// Varje avslutat spel sparas på värdskärmen (webbläsarens lagring): vem som var med, poäng, placering och rätt per kategori.
+const Stats = {
+  all() { return store.get('history', []); },
+  save(H) {
+    if (H.saved || !H.players.size || H.qi < 1) return this.wins();
+    H.saved = true;
+    const ranked = H.ranked(), ts = H.teamStandings();
+    const g = { id: H.gameId, d: Date.now(), title: H.quiz.title, n: Math.min(H.qi + 1, H.quiz.questions.length), teams: ts.length ? ts.map(t => ({ e: t.t.e, n: t.t.s, score: t.score, rank: t.rank, m: t.m.map(p => p.name) })) : null,
+      players: ranked.map(({ p, rank }) => ({ name: p.name, avatar: p.avatar, score: p.score, rank, right: p.right || 0, seen: p.seenQ || 0, cats: p.cats || {}, level: p.level, team: p.team })) };
+    const list = this.all(); list.push(g); store.set('history', list.slice(-200));
+    return this.wins();
+  },
+  wins() { const w = {}; for (const g of this.all()) for (const p of g.players) if (p.rank === 1 && g.players.length > 1) w[p.name.toLowerCase()] = (w[p.name.toLowerCase()] || 0) + 1; return w; },
+  people() {
+    const m = new Map();
+    for (const g of this.all()) for (const p of g.players) {
+      const k = p.name.toLowerCase(); let x = m.get(k);
+      if (!x) m.set(k, x = { name: p.name, avatar: p.avatar, games: 0, wins: 0, podium: 0, rankSum: 0, right: 0, seen: 0, best: 0, cats: {}, last: 0 });
+      x.name = p.name; x.avatar = p.avatar; x.games++; x.rankSum += p.rank; x.right += p.right; x.seen += p.seen; x.best = Math.max(x.best, p.score); x.last = Math.max(x.last, g.d);
+      if (g.players.length > 1 && p.rank === 1) x.wins++; if (g.players.length > 1 && p.rank <= 3) x.podium++;
+      for (const [c, [r, t]] of Object.entries(p.cats || {})) { const cc = x.cats[c] || (x.cats[c] = [0, 0]); cc[0] += r; cc[1] += t; }
+    }
+    for (const x of m.values()) {
+      const cs = Object.entries(x.cats).filter(([c, [, t]]) => t >= 3 && CATS[c]).map(([c, [r, t]]) => ({ c, pct: r / t, t }));
+      cs.sort((a, b) => b.pct - a.pct || b.t - a.t);
+      x.bestCat = cs[0] || null; x.worstCat = cs.length > 1 ? cs[cs.length - 1] : null;
+    }
+    return [...m.values()].sort((a, b) => b.wins - a.wins || (a.rankSum / a.games) - (b.rankSum / b.games));
+  },
+};
+function renderStats(back = renderHome) {
+  const ppl = Stats.people(), games = Stats.all().slice().reverse();
+  const pct = (r, t) => t ? Math.round(r / t * 100) + ' %' : '–';
+  const date = d => new Date(d).toLocaleDateString('sv-SE', { day: 'numeric', month: 'short' });
+  setScreen(`<div class="setup stats">
+    <header class="bar"><button class="btn icon ghost" id="back" aria-label="Tillbaka">←</button><h2>Statistik</h2><span></span></header>
+    ${ppl.length ? `
+    <section class="opt"><h3>🏆 Vinnarligan</h3>
+      <div class="st-table"><div class="st-row st-head"><span></span><span>Spelare</span><span>Vinster</span><span>Spel</span><span>Snittplats</span><span>Rätt</span><span>Bäst i</span></div>
+      ${ppl.map((x, i) => `<div class="st-row"><span class="rk">${i + 1}</span><span class="nm">${esc(x.avatar)} ${esc(x.name)}</span><span><b>${x.wins}</b> 🥇</span><span>${x.games}</span><span>${(x.rankSum / x.games).toFixed(1).replace('.', ',')}</span><span>${pct(x.right, x.seen)}</span><span class="cat">${x.bestCat ? `${CATS[x.bestCat.c].e} ${esc(CATS[x.bestCat.c].n)} <small>${Math.round(x.bestCat.pct * 100)} %</small>` : '–'}</span></div>`).join('')}
+      </div>
+      <p class="muted small">Snittplats = genomsnittlig placering. "Bäst i" räknas från kategorier med minst 3 frågor. Rekord: ${ppl.slice().sort((a, b) => b.best - a.best).slice(0, 1).map(x => `${esc(x.avatar)} ${esc(x.name)} – ${fmt(x.best)} p i ett spel`).join('')}</p>
+    </section>
+    <section class="opt"><h3>🕘 Senaste spelen</h3>
+      <ol class="st-games">${games.slice(0, 15).map(g => {
+        const w = g.teams ? g.teams.find(t => t.rank === 1) : null, p1 = g.players[0];
+        return `<li><span class="d">${date(g.d)}</span><span class="t">${esc(g.title)} <small>${g.n} frågor · ${g.players.length} spelare</small></span><span class="w">${w ? `${w.e} ${esc(w.n)}` : p1 ? `🥇 ${esc(p1.avatar)} ${esc(p1.name)}` : ''}</span></li>`;
+      }).join('')}</ol>
+    </section>
+    <p class="center"><button class="btn ghost small danger-t" id="clearStats">Rensa statistiken</button></p>`
+    : `<div class="empty"><div class="big-emoji">📊</div><p>Ingen statistik ännu. Spela ett quiz med minst två frågor så dyker resultaten upp här.</p></div>`}
+  </div>`, 'scr-setup');
+  $('#back').onclick = () => back();
+  $('#clearStats') && ($('#clearStats').onclick = async () => { if (await confirmDlg('Radera all statistik på den här enheten?', 'Radera')) { store.set('history', []); renderStats(back); } });
+}
 
 // ═════════════════════════ ENSPELARLÄGE ═════════════════════════
 const Solo = {
@@ -1157,7 +1531,8 @@ const Solo = {
   t: null, tickT: null, cdT: null, qStart: 0, deadline: 0, lastSecond: null,
   start(quiz, extra = {}) {
     this.stop(); confetti.stop(); if (Host.phase !== 'idle') Host.close();
-    Object.assign(this, { quiz, qi: -1, score: 0, streak: 0, bestStreak: 0, right: 0, log: [], tts: !!extra.tts || quiz.age === '0' });
+    Object.assign(this, { quiz, qi: -1, score: 0, streak: 0, bestStreak: 0, right: 0, log: [], tts: !!extra.tts || quiz.age === '0', jokers: { fifty: true, time: true } });
+    const n = quiz.questions.length; this.doubleQi = n >= 4 ? Math.floor(n / 2) + Math.floor(Math.random() * (n - Math.floor(n / 2))) : -1;
     Sound.ensure(); keepAwake();
     const m = quiz.questions.find(q => q.type === 'music' && q.track); if (m) Sp.preload(m.track);
     this.next();
@@ -1167,18 +1542,21 @@ const Solo = {
   next() {
     this.stop(); Speech.stop(); this.qi++;
     if (this.qi >= this.quiz.questions.length) return this.finish();
-    const q = this.quiz.questions[this.qi]; this.phase = 'ready';
+    const q = this.quiz.questions[this.qi]; this.phase = 'ready'; const dbl = this.qi === this.doubleQi;
     let ms = q.type === 'music' ? 3500 : clamp(1200 + q.text.length * 30, 2000, 5000);
     if (this.tts) ms = Math.max(ms, clamp(q.text.length * 75, 2500, 9500));
+    if (dbl) ms += 1500;
     renderSoloReady(q, ms);
+    if (q.type === 'flag' && q.img) { const im = new Image(); im.src = q.img; }
     if (q.type === 'music') { Bgm.stop(); if (q.track) Sp.play(q.track); else Sp.stop(); } else { Sp.stop(); Bgm.start('lobby'); }
+    if (dbl) { Bgm.stop(); Sound.double(); }
     if (this.tts) Speech.speak(q.text);
     this.t = setTimeout(() => this.show(), ms);
   },
   show() {
     if (this.phase !== 'ready') return; this.stop();
     const q = this.quiz.questions[this.qi];
-    this.phase = 'question'; this.qStart = performance.now(); this.deadline = Date.now() + q.time * 1000; this.lastSecond = null;
+    this.phase = 'question'; this.qStart = performance.now(); this.qWall = Date.now(); this.deadline = this.qWall + q.time * 1000; this.lastSecond = null; this.vis = null; this.extra = 0; this.used = {};
     renderSoloQuestion(q);
     if (q.type !== 'music') Bgm.start('q');
     if (this.tts && q.type !== 'music') Speech.speak(spokenOptions(q));
@@ -1187,11 +1565,11 @@ const Solo = {
   },
   tick() {
     const q = this.quiz.questions[this.qi], left = Math.max(0, this.deadline - Date.now()), sec = Math.ceil(left / 1000);
-    const bar = $('#sBar'); if (bar) bar.style.transform = `scaleX(${(left / (q.time * 1000)).toFixed(4)})`;
+    const bar = $('#sBar'); if (bar) bar.style.transform = `scaleX(${clamp(left / (q.time * 1000), 0, 1).toFixed(4)})`;
     const num = $('#sSec'); if (num) num.textContent = sec;
     if (sec !== this.lastSecond) { this.lastSecond = sec; if (sec <= 5 && sec > 0) Sound.tick(); }
     if (q.type === 'clue') {
-      const i = clueIdx(q, q.time * 1000 - left);
+      const i = clueIdx(q, Date.now() - this.qWall);
       if (i !== this.clueShown) { this.clueShown = i; updateClues(q, i); if (this.tts) Speech.speak(q.clues[i]); }
     }
     if (left <= 0) this.answer(null);
@@ -1201,9 +1579,10 @@ const Solo = {
     this.stop(); Bgm.stop(); Speech.stop();
     const q = this.quiz.questions[this.qi], ms = performance.now() - this.qStart;
     if (typeof a === 'number') a = { c: a };
-    const g = grade(q, a, ms), ok = g.ok; let pts = g.base;
+    const g = grade(q, a, ms, { extra: this.extra }), ok = g.ok; let pts = g.base;
     if (ok) { this.streak++; this.right++; this.bestStreak = Math.max(this.bestStreak, this.streak); pts += Math.min(this.streak - 1, 5) * 100; }
     else this.streak = 0;
+    if (this.qi === this.doubleQi) pts *= 2;
     const c = a && 'c' in a ? a.c : (a ? -2 : null);
     this.score += pts; this.phase = 'reveal'; this.log.push({ q, c, ok, pts });
     if (q.type === 'music') Sp.reveal();
@@ -1216,6 +1595,13 @@ const Solo = {
     this.t = setTimeout(() => { if (this.phase === 'reveal') this.next(); }, wait);
   },
   hold() { this.stop(); updateCountdown(null); const h = $('#holdBtn'); if (h) h.remove(); },
+  joker(k) {
+    if (this.phase !== 'question' || !this.jokers[k]) return; const q = this.quiz.questions[this.qi];
+    if (k === 'fifty') { if (!canFifty(q, this.vis)) return; this.vis = fiftyOpts(q, this.vis); }
+    if (k === 'time') { this.deadline += EXTRA_MS; this.extra += EXTRA_MS; }
+    this.jokers[k] = false; this.used[k] = true; Sound.joker();
+    if (k === 'fifty') renderSoloQuestion(q); else { const b = $(`[data-jk="${k}"]`); if (b) { b.disabled = true; b.classList.add('used', 'on'); } toast('⏱️ +10 sekunder!'); }
+  },
   finish() {
     this.stop(); Sp.stop(); Speech.stop(); Bgm.stop(); this.phase = 'end';
     const best = store.get('soloBest', {}), k = this.quiz.title, prev = best[k] || 0, rec = this.score > prev && this.score > 0;
@@ -1240,6 +1626,7 @@ function bindSoloQuit() {
 function renderSoloReady(q, ms) {
   setScreen(`<div class="solo ${q.type === 'music' ? 'is-music' : ''}">${soloTop(q)}
     <div class="ready-body solo-ready">
+      ${Solo.qi === Solo.doubleQi ? '<div class="double-banner">⭐ DUBBLA POÄNG ⭐</div>' : ''}
       ${typeBadge(q.type)}
       <h1 class="qtext">${esc(q.text)}</h1>
       ${q.type === 'music' ? `<div id="mediaSlot" class="media-slot">${q.track ? '' : '<div class="dj-wait">⚠️ Ingen låt angiven</div>'}</div>` : ''}
@@ -1253,7 +1640,8 @@ function renderSoloReady(q, ms) {
 const longWords = opts => Math.max(...opts.flatMap(o => String(o).split(/[\s–-]+/).map(w => w.length))) >= 13;
 function renderSoloQuestion(q, res) {
   const S = Solo, reveal = !!res, tf = q.type === 'tf', last = S.qi >= S.quiz.questions.length - 1;
-  const opts = q.opts.map((o, i) => {
+  const vis = !reveal && S.vis ? S.vis : q.opts.map((_, i) => i);
+  const opts = vis.map(i => { const o = q.opts[i];
     const st = reveal ? (i === q.correct ? 'right' : i === res.c ? 'picked wrong' : 'wrong') : '';
     return `<button class="p-opt c${tf ? (i === 0 ? 1 : 0) : i} ${st}" data-c="${i}"><span class="shape">${tf ? TF_ICONS[i] : SHAPES[i]}</span><span class="ptext">${esc(o)}</span>${reveal && i === q.correct ? '<span class="tick">✓</span>' : ''}</button>`;
   }).join('');
@@ -1263,7 +1651,13 @@ function renderSoloQuestion(q, res) {
     ? `<div class="solo-res ok">✓ Rätt! <b>+${fmt(res.pts)}</b>${S.streak >= 2 ? ` · 🔥 ${S.streak} i rad` : ''}${detail ? `<small>${esc(detail)}</small>` : ''}</div>`
     : res.pts >= 200 ? `<div class="solo-res near">Nära! <b>+${fmt(res.pts)}</b><small>${esc(detail)}</small></div>`
     : `<div class="solo-res bad">${res.c == null ? '⏰ Tiden tog slut' : SPECIAL.has(q.type) ? '✕ För långt ifrån' : '✕ Fel svar'}${res.pts > 0 ? ` <b>+${fmt(res.pts)}</b>` : ''}${detail ? `<small>${esc(detail)}</small>` : ''}</div>`;
-  let input = `<div class="p-opts solo-opts n${q.opts.length} ${longWords(q.opts) ? 'lw' : ''}">${opts}</div>`, extra = '';
+  let input = `<div class="p-opts solo-opts n${vis.length} ${longWords(q.opts) ? 'lw' : ''}">${opts}</div>`, extra = '';
+  if (q.type === 'flag') extra = flagHtml(q, reveal, q.time, S.qWall);
+  if (q.type === 'order') input = reveal
+    ? `<div class="solo-order-ans">${orderAnswerHtml(q)}</div>`
+    : `<div class="solo-order"><p class="ord-lab">Tryck i ordning: <b>1 = ${esc(q.lab[0])}</b> … <b>${q.opts.length} = ${esc(q.lab[1])}</b></p><div class="p-opts solo-opts n${q.opts.length} ord-grid ${longWords(q.opts) ? 'lw' : ''}">${orderButtons(q.opts, q.opts.length)}</div>
+       <div class="ord-act"><button type="button" class="btn ghost" data-oreset>↺ Börja om</button><button type="button" class="btn primary big" data-osend disabled>Svara ✓</button></div></div>`;
+  const sJok = reveal ? '' : jokerBar({ jok: { avail: { fifty: S.jokers.fifty && canFifty(q, S.vis), time: S.jokers.time, steal: false }, used: S.used || {} } }).replace(/<button[^>]*data-jk="steal"[\s\S]*?<\/button>/, '');
   if (q.type === 'clue') extra = `<div class="clue-panel solo-clues"><div id="clueBox">${clueListHtml(q, reveal ? q.clues.length - 1 : Math.max(0, S.clueShown ?? 0), reveal)}</div>${reveal ? '' : `<div class="clue-val">Rätt svar nu: <b id="clueVal">${fmt(cluePts(q, Math.max(0, S.clueShown ?? 0)))} p</b></div>`}</div>`;
   if (q.type === 'slider') input = reveal ? `<div class="hq-scale solo-scale">${scaleHtml(q, res.a ? [{ v: res.a.v, label: '🙂' }] : [], true)}</div>`
     : `<form class="solo-special" id="spForm">${sliderHtml(q)}<button class="btn primary big" type="submit">Svara ✓</button></form>`;
@@ -1272,8 +1666,9 @@ function renderSoloQuestion(q, res) {
     input = `<form class="solo-special map-in" id="spForm"><div class="mapscroll map-${q.map}">${mapHtml(q, pins)}</div>${reveal ? `<div class="map-answer">📍 <b>${esc(q.place)}</b></div>` : '<p class="muted small center">Tryck på kartan där du tror att det ligger. Dra för att flytta kartan.</p><button class="btn primary big" type="submit" disabled>Svara ✓</button>'}</form>`;
   }
   setScreen(`<div class="solo ${reveal ? 'revealed' : ''} ${q.type === 'music' ? 'is-music' : ''}">${soloTop(q)}
-    <div class="solo-timer"><div class="p-timer"><i id="sBar" style="transform:scaleX(${reveal ? 0 : 1})"></i></div><span id="sSec">${reveal ? '' : q.time}</span></div>
-    <h1 class="qtext">${esc(q.text)}</h1>
+    <div class="solo-timer"><div class="p-timer"><i id="sBar" style="transform:scaleX(${reveal ? 0 : clamp((S.deadline - Date.now()) / (q.time * 1000), 0, 1)})"></i></div><span id="sSec">${reveal ? '' : Math.ceil(Math.max(0, S.deadline - Date.now()) / 1000)}</span></div>
+    ${sJok}
+    <h1 class="qtext">${S.qi === S.doubleQi ? '<span class="dbl-chip">⭐ ×2</span> ' : ''}${esc(q.text)}</h1>
     ${q.type === 'music' ? `<div id="mediaSlot" class="media-slot"></div>` : ''}${extra}${songInfo}${banner}
     ${input}
     ${reveal ? `<div class="solo-next"><button class="btn ghost small" id="holdBtn">⏸ Vänta</button><button class="btn primary big" id="nextBtn">${last ? 'Se resultatet' : 'Nästa'}<span class="cd"></span> ${last ? '🏆' : '▶'}</button></div>` : ''}
@@ -1286,7 +1681,9 @@ function renderSoloQuestion(q, res) {
     bindMapTap($('.mapbox', f), q, x => { ll = x; f.querySelector('button[type=submit]').disabled = false; });
     f.onsubmit = e => { e.preventDefault(); if (ll) Solo.answer(ll); };
   }
+  else if (q.type === 'order') bindOrder($('.solo-order'), q.opts.length, o => Solo.answer({ o }));
   else $$('.solo-opts [data-c]').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); Solo.answer(+b.dataset.c); }, { once: true }));
+  if (!reveal) $$('[data-jk]').forEach(b => b.onclick = () => Solo.joker(b.dataset.jk));
   if (q.type === 'map') centerMapScroll($('.mapscroll'), q);
   if (q.type === 'music') placeDock();
 }
@@ -1316,6 +1713,8 @@ const Player = {
   begin(pin, name, avatar, role = 'player') {
     Object.assign(this, { pin, name, avatar, role, state: 'connecting', retries: 0 });
     this.cid = sess.get('cid', null) || uid(); sess.set('cid', this.cid);
+    // Har den här mobilen redan behövt reservvägen till det här rummet? Då direkt dit.
+    this.via = FORCE_RELAY || sess.get('via', null) === pin ? 'relay' : 'peer';
     if (role === 'player') store.set('me', { name, avatar });
     renderPConnecting(); keepAwake();
     this.ensurePeer();
@@ -1323,28 +1722,45 @@ const Player = {
     this.wdT = setInterval(() => { if (this.state === 'joined' && Date.now() - this.lastPing > 10000) this.lost(); }, 3000);
   },
   ensurePeer() {
+    if (this.via === 'relay') { this.dial(); return; }
     if (this.peer && !this.peer.destroyed) { if (this.peer.disconnected) { try { this.peer.reconnect(); } catch {} } else if (this.peer.open) this.dial(); return; }
     const peer = new Peer(peerOptions()); this.peer = peer;
-    peer.on('open', () => { if (this.peer === peer) this.dial(); });
-    peer.on('disconnected', () => { if (this.peer === peer && !peer.destroyed && this.state !== 'left') setTimeout(() => { try { peer.reconnect(); } catch {} }, 1200); });
+    peer.on('open', () => { if (this.peer === peer && this.via === 'peer') this.dial(); });
+    peer.on('disconnected', () => { if (this.peer === peer && !peer.destroyed && this.state !== 'left' && this.via === 'peer') setTimeout(() => { try { peer.reconnect(); } catch {} }, 1200); });
     peer.on('error', err => {
-      if (this.peer !== peer) return;
-      if (err.type === 'peer-unavailable') {
-        if (this.state === 'connecting' && this.retries < 2) { this.retries++; setTimeout(() => this.dial(), 1500); }
-        else if (this.state === 'connecting') { this.state = 'idle'; renderJoin(this.pin, `Hittade inget spel med PIN ${this.pin}. Kolla koden på storskärmen.`); }
-        else this.lost();
-      } else if (['network', 'server-error', 'socket-error', 'socket-closed', 'disconnected'].includes(err.type)) this.lost();
+      if (this.peer !== peer || this.via !== 'peer') return;
+      // Hittar inte värden via WebRTC-servern, eller kommer inte fram alls → prova internetreläet
+      if (this.state === 'connecting' || err.type === 'peer-unavailable') this.useRelay();
+      else if (['network', 'server-error', 'socket-error', 'socket-closed', 'disconnected'].includes(err.type)) this.lost();
     });
+    setTimeout(() => { if (this.peer === peer && !peer.open && this.via === 'peer' && this.state === 'connecting') this.useRelay(); }, 7000);
+  },
+  useRelay() {
+    if (this.via === 'relay' || ['left', 'kicked', 'idle'].includes(this.state)) return;
+    this.via = 'relay'; sess.set('via', this.pin);
+    try { this.conn && this.conn.close(); } catch {} this.conn = null;
+    try { this.peer && this.peer.destroy(); } catch {} this.peer = null;
+    this.dial();
   },
   dial() {
     if (this.state === 'left' || this.state === 'kicked') return;
     try { this.conn && this.conn.close(); } catch {}
-    const c = this.peer.connect(hostPeerId(this.pin), { reliable: true, serialization: 'json' }); this.conn = c; let opened = false;
-    c.on('open', () => { opened = true; this.retries = 0; this.lastPing = Date.now(); send(c, { t: 'hello', cid: this.cid, name: this.name, avatar: this.avatar, role: this.role }); });
+    const relay = this.via === 'relay';
+    const c = relay ? new QCRelay.RelayClient(this.pin, params.get('b')) : this.peer.connect(hostPeerId(this.pin), { reliable: true, serialization: 'json' });
+    this.conn = c; let opened = false;
+    c.on('open', () => { if (this.conn !== c) return; opened = true; this.retries = 0; this.lastPing = Date.now(); send(c, { t: 'hello', cid: this.cid, name: this.name, avatar: this.avatar, role: this.role }); });
     c.on('data', m => { if (this.conn === c) this.onMsg(m); });
     c.on('close', () => { if (this.conn === c) this.lost(); });
-    c.on('error', () => { if (this.conn === c) this.lost(); });
-    setTimeout(() => { if (!opened && this.conn === c && this.state !== 'idle') this.lost(); }, 9000);
+    c.on('error', e => {
+      if (this.conn !== c) return;
+      if (relay && this.state === 'connecting') {
+        this.state = 'idle'; sess.del('via');
+        renderJoin(this.pin, e && e.type === 'network' ? 'Kommer inte ut på internet just nu – kolla uppkopplingen och försök igen.' : `Hittade inget spel med PIN ${this.pin}. Kolla koden på storskärmen.`);
+      } else if (!relay && this.state === 'connecting') this.useRelay();
+      else this.lost();
+    });
+    // WebRTC kom inte fram inom 6 s (brandvägg eller mobilnät) → internetreläet
+    setTimeout(() => { if (!opened && this.conn === c && this.state !== 'idle') { if (!relay && this.state === 'connecting') this.useRelay(); else this.lost(); } }, relay ? 20000 : 6000);
   },
   lost() {
     if (['left', 'kicked', 'idle'].includes(this.state)) return;
@@ -1354,8 +1770,10 @@ const Player = {
     clearTimeout(this.retryT);
     this.retryT = setTimeout(() => {
       if (['left', 'kicked', 'idle'].includes(this.state)) return;
+      if (this.via === 'relay') { this.dial(); return; }
       if (!this.peer || this.peer.destroyed) { this.peer = null; this.ensurePeer(); }
       else if (this.peer.disconnected) { try { this.peer.reconnect(); } catch { this.peer.destroy(); this.peer = null; this.ensurePeer(); } }
+      else if (++this.retries > 2) this.useRelay();
       else this.dial();
     }, 1500);
   },
@@ -1363,6 +1781,15 @@ const Player = {
     this.state = 'left'; clearInterval(this.wdT); clearTimeout(this.retryT); sess.del('session');
     try { this.conn && this.conn.close(); } catch {} try { this.peer && this.peer.destroy(); } catch {}
     this.peer = this.conn = null; document.body.classList.remove('reconnecting');
+  },
+  onJoker(m) {
+    const cur = this.cur; if (!cur || cur.t !== 'q' || cur.qi !== m.qi || !cur.jok) return;
+    cur.jok.used[m.k] = true; cur.jok.avail[m.k] = false;
+    try { navigator.vibrate && navigator.vibrate([20, 30, 20]); } catch {}
+    if (m.k === 'fifty') { cur.show = m.show; cur.left = m.left; renderPAnswer(cur); toast('🌓 Två fel svar borta!'); return; }
+    if (m.k === 'time') { cur.time = m.time; cur.left = m.left; pTimerBar(cur); toast('⏱️ +10 sekunder!'); }
+    if (m.k === 'steal') toast('💰 Svara rätt så stjäl du poäng!');
+    const b = $(`[data-jk="${m.k}"]`); if (b) { b.disabled = true; b.classList.add('used', 'on'); }
   },
   answer(c) {
     const m = this.cur; if (!m || m.t !== 'q' || this.answeredQi === m.qi) return;
@@ -1379,13 +1806,14 @@ const Player = {
     this.lastPing = Date.now();
     switch (m.t) {
       case 'welcome':
-        this.state = 'joined'; document.body.classList.remove('reconnecting'); this.showText = m.showText !== false;
+        this.state = 'joined'; document.body.classList.remove('reconnecting'); this.showText = m.showText !== false; this.team = m.team || null; this.level = m.level || 'normal';
         sess.set('session', { pin: this.pin, name: this.name, avatar: this.avatar, role: this.role });
         if (m.role === 'dj') renderDj({ state: 'idle', title: m.title });
         break;
       case 'err':
         this.state = 'idle'; try { this.conn.close(); } catch {} sess.del('session'); renderJoin(this.pin, m.msg); break;
-      case 'lobby': if (this.role === 'player') renderPLobby(m); break;
+      case 'lobby': this.team = m.team || null; this.level = m.level || 'normal'; if (this.role === 'player') renderPLobby(m); break;
+      case 'jok': this.onJoker(m); break;
       case 'ready': this.cur = m; renderPReady(m); break;
       case 'q': this.cur = m; if (this.answeredQi !== m.qi) renderPAnswer(m); break;
       case 'ack': this.acked = true; if (this.answeredQi !== m.qi) { this.answeredQi = m.qi; renderPAnswered(null, null); } break;
@@ -1401,7 +1829,10 @@ const Player = {
 
 // ───────────── Spelarens skärmar ─────────────
 function clearPinParam() { const p = new URLSearchParams(location.search); p.delete('pin'); p.delete('dj'); history.replaceState(null, '', location.pathname + (p.toString() ? '?' + p : '')); }
-function pTop() { return `<header class="p-top"><span class="p-me">${esc(Player.avatar)} ${esc(Player.name)}</span><span class="p-pin">PIN ${esc(Player.pin)}</span></header>`; }
+function pTop() {
+  const t = Player.team, L = LEVELS[Player.level];
+  return `<header class="p-top" ${t ? `style="--tc:${TEAMS[t.i].c}"` : ''}><span class="p-me">${esc(Player.avatar)} ${esc(Player.name)}${L && Player.level !== 'normal' ? ` <small>${L.e}</small>` : ''}</span>${t ? `<span class="p-team">${t.e} ${esc(TEAMS[t.i].s)}</span>` : ''}<span class="p-pin">PIN ${esc(Player.pin)}</span></header>`;
+}
 function renderJoin(pin, error = '') {
   const me = store.get('me', { name: '', avatar: AVATARS[Math.floor(Math.random() * AVATARS.length)] });
   let av = me.avatar || AVATARS[0];
@@ -1433,27 +1864,61 @@ function renderPConnecting() { setScreen(`<div class="center-screen p"><div clas
 function renderPLobby(m) {
   setScreen(`<div class="p-screen lobby-p">${pTop()}<div class="p-mid"><div class="big-av bounce">${esc(Player.avatar)}</div><h2>Du är med, ${esc(Player.name)}!</h2>
     <p class="muted">${m.count} spelare i rummet. Titta på storskärmen – quizet startar snart.</p>
+    ${m.team ? `<p class="p-team-big" style="--tc:${TEAMS[m.team.i].c}">Du spelar i ${m.team.e} <b>${esc(m.team.n)}</b></p>` : ''}
+    ${m.level && m.level !== 'normal' ? `<p class="muted small">${LEVELS[m.level].e} ${esc(LEVELS[m.level].n)}: ${esc(LEVELS[m.level].d)}</p>` : ''}
     <p class="p-quiz">${esc(m.title || '')}</p></div></div>`, 'scr-player');
 }
 function renderPReady(m) {
   const cat = CATS[m.cat] || { e: '📝', n: 'Fråga' };
-  setScreen(`<div class="p-screen ready-p">${pTop()}<div class="p-mid"><div class="p-qn">Fråga ${m.qi + 1} av ${m.total}</div>
+  setScreen(`<div class="p-screen ready-p ${m.dbl ? 'is-double' : ''}">${pTop()}<div class="p-mid">${m.dbl ? '<div class="double-banner small">⭐ DUBBLA POÄNG ⭐</div>' : ''}<div class="p-qn">Fråga ${m.qi + 1} av ${m.total}</div>
     <div class="p-cat">${TYPE_BADGE[m.type] || `${cat.e} ${esc(cat.n)}`}</div>
     ${m.showText !== false ? `<p class="p-qtext">${esc(m.text)}</p>` : ''}<div class="ready-spin"></div><p class="muted">Gör dig redo…</p></div></div>`, 'scr-player');
 }
 function pTimerBar(m) {
   const bar = $('#pBar'); if (!bar) return; const frac = clamp(m.left / (m.time * 1000), 0, 1);
-  bar.style.transform = `scaleX(${frac})`; requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transition = `transform ${m.left}ms linear`; bar.style.transform = 'scaleX(0)'; }));
+  bar.style.transition = 'none'; bar.style.transform = `scaleX(${frac})`; void bar.offsetWidth; requestAnimationFrame(() => requestAnimationFrame(() => { bar.style.transition = `transform ${m.left}ms linear`; bar.style.transform = 'scaleX(0)'; }));
+}
+function jokerBar(m) {
+  if (!m.jok) return '';
+  return `<div class="jbar">${Object.entries(JOKERS).map(([k, J]) => { const used = m.jok.used[k], ok = m.jok.avail[k] && !used; return `<button type="button" class="jbtn ${used ? 'used on' : ''}" data-jk="${k}" ${ok ? '' : 'disabled'} title="${esc(J.d)}"><span>${J.e}</span><small>${J.n}</small></button>`; }).join('')}</div>`;
+}
+function bindJokers(m) {
+  $$('[data-jk]').forEach(b => b.onclick = e => { e.preventDefault(); if (Player.answeredQi === m.qi || b.disabled) return; b.disabled = true; send(Player.conn, { t: 'joker', qi: m.qi, k: b.dataset.jk }); });
+}
+const dblTag = m => m.dbl ? '<span class="dbl-chip small">⭐ ×2</span>' : '';
+// Sortera: tryck på alternativen i ordning. done(lista med index i vald ordning)
+function bindOrder(root, n, done) {
+  let picked = [];
+  const btns = $$('[data-o]', root), send_ = $('[data-osend]', root), undo = $('[data-oreset]', root);
+  const upd = () => {
+    btns.forEach(b => { const k = picked.indexOf(+b.dataset.o); b.classList.toggle('picked', k >= 0); b.querySelector('.onum').textContent = k >= 0 ? k + 1 : ''; });
+    if (send_) send_.disabled = picked.length !== n; if (undo) undo.disabled = !picked.length;
+  };
+  btns.forEach(b => b.addEventListener('click', () => { const i = +b.dataset.o; if (picked.includes(i)) picked = picked.slice(0, picked.indexOf(i)); else picked.push(i); try { navigator.vibrate && navigator.vibrate(12); } catch {} upd(); }));
+  if (undo) undo.onclick = () => { picked = []; upd(); };
+  if (send_) send_.onclick = () => { if (picked.length === n) done(picked.slice()); };
+  upd();
+}
+function orderButtons(opts, n, cls = 'p-opt') {
+  return Array.from({ length: n }, (_, i) => `<button type="button" class="${cls} ord-b c${i}" data-o="${i}"><span class="onum"></span><span class="shape">${SHAPES[i]}</span>${opts ? `<span class="ptext">${esc(opts[i])}</span>` : ''}</button>`).join('');
 }
 function renderPSpecial(m) {
   const q = { ...m, min: m.min, max: m.max, step: m.step || 1 };
+  if (m.type === 'order') {
+    setScreen(`<div class="p-screen answer-p order-p">${pTop()}${m.opts ? `<p class="p-qtext small">${dblTag(m)}${esc(m.text)}</p>` : ''}<div class="p-timer"><i id="pBar"></i></div>${jokerBar(m)}
+      <p class="ord-lab">Tryck i ordning: <b>1 = ${esc(m.lab[0])}</b> … <b>${m.n} = ${esc(m.lab[1])}</b></p>
+      <div class="p-opts n${m.n} ord-grid ${m.opts ? (longWords(m.opts) ? 'lw' : '') : 'noText'}">${orderButtons(m.opts, m.n)}</div>
+      <div class="ord-act"><button type="button" class="btn ghost" data-oreset>↺ Börja om</button><button type="button" class="btn primary big" data-osend disabled>Skicka ✓</button></div></div>`, 'scr-player');
+    bindOrder($('.order-p'), m.n, o => Player.answer({ o }));
+    bindJokers(m); pTimerBar(m); return;
+  }
   if (m.type === 'slider') {
-    setScreen(`<div class="p-screen answer-p special-p">${pTop()}<p class="p-qtext small">${esc(m.text)}</p><div class="p-timer"><i id="pBar"></i></div>
+    setScreen(`<div class="p-screen answer-p special-p">${pTop()}<p class="p-qtext small">${dblTag(m)}${esc(m.text)}</p><div class="p-timer"><i id="pBar"></i></div>${jokerBar(m)}
       <form class="p-special" id="psForm">${sliderHtml(q)}<button class="btn primary big" type="submit">Svara ✓</button></form></div>`, 'scr-player');
     const get = bindSlider($('#psForm'), q);
     $('#psForm').onsubmit = e => { e.preventDefault(); Player.answer({ v: get() }); };
   } else {
-    setScreen(`<div class="p-screen answer-p special-p">${pTop()}<p class="p-qtext small">${esc(m.text)}</p><div class="p-timer"><i id="pBar"></i></div>
+    setScreen(`<div class="p-screen answer-p special-p">${pTop()}<p class="p-qtext small">${dblTag(m)}${esc(m.text)}</p><div class="p-timer"><i id="pBar"></i></div>${jokerBar(m)}
       <form class="p-special map-in" id="psForm"><div class="mapscroll map-${m.map}">${mapHtml(m)}</div>
       <p class="muted small center">Tryck där du tror att det ligger – dra för att flytta kartan.</p>
       <button class="btn primary big" type="submit" disabled>Sätt nålen här ✓</button></form></div>`, 'scr-player');
@@ -1462,23 +1927,23 @@ function renderPSpecial(m) {
     f.onsubmit = e => { e.preventDefault(); if (ll) Player.answer(ll); };
     centerMapScroll($('.mapscroll'), m);
   }
-  pTimerBar(m);
+  bindJokers(m); pTimerBar(m);
 }
 function renderPAnswer(m) {
-  if (m.type === 'slider' || m.type === 'map') return renderPSpecial(m);
-  const tf = m.type === 'tf';
-  const opts = Array.from({ length: m.n }, (_, i) => {
+  if (m.type === 'slider' || m.type === 'map' || m.type === 'order') return renderPSpecial(m);
+  const tf = m.type === 'tf', vis = m.show || Array.from({ length: m.n }, (_, i) => i);
+  const opts = vis.map(i => {
     const color = tf ? (i === 0 ? 1 : 0) : i;
     const label = m.opts ? m.opts[i] : (tf ? (i === 0 ? 'Sant' : 'Falskt') : '');
     return `<button class="p-opt c${color}" data-c="${i}"><span class="shape">${tf ? TF_ICONS[i] : SHAPES[i]}</span>${label ? `<span class="ptext">${esc(label)}</span>` : ''}</button>`;
   }).join('');
   const clue = m.type === 'clue';
   setScreen(`<div class="p-screen answer-p ${clue ? 'clue-p' : ''}">${pTop()}
-    ${m.opts ? `<p class="p-qtext small">${esc(m.text)}</p>` : ''}
+    ${m.opts ? `<p class="p-qtext small">${dblTag(m)}${esc(m.text)}</p>` : m.dbl ? `<p class="p-qtext small">${dblTag(m)}</p>` : ''}
     ${clue ? `<div class="p-clue"><span id="pClueN">🕵️ Ledtråd 1 av ${m.nClues}</span><b id="pClueV"></b></div>${m.clues ? `<p class="p-clue-text" id="pClueT"></p>` : ''}` : ''}
-    <div class="p-timer"><i id="pBar"></i></div>
-    <div class="p-opts n${m.n} ${m.opts ? (longWords(m.opts) ? 'lw' : '') : 'noText'}">${opts}</div></div>`, 'scr-player');
-  pTimerBar(m);
+    <div class="p-timer"><i id="pBar"></i></div>${jokerBar(m)}
+    <div class="p-opts n${vis.length} ${m.opts ? (longWords(vis.map(i => m.opts[i])) ? 'lw' : '') : 'noText'}">${opts}</div></div>`, 'scr-player');
+  pTimerBar(m); bindJokers(m);
   $$('[data-c]').forEach(b => b.addEventListener('pointerdown', e => { e.preventDefault(); Player.answer(+b.dataset.c); }, { once: true }));
   if (clue) {
     // Visa vilken ledtråd som syns på storskärmen och vad ett rätt svar ger just nu
@@ -1497,22 +1962,27 @@ function renderPAnswered(m, c) {
   const cur = m || Player.cur; if (cur && cur.t === 'res') return;
   const tf = cur && cur.type === 'tf';
   let shape = c != null && typeof c !== 'object' ? `<div class="chosen c${tf ? (c === 0 ? 1 : 0) : c}">${tf ? TF_ICONS[c] : SHAPES[c]}</div>` : '';
-  if (c && typeof c === 'object') shape = `<div class="big-emoji">${'v' in c ? '🎚️' : '📍'}</div>${'v' in c ? `<p class="sent-val">${esc(fmtVal(cur, c.v))}</p>` : ''}`;
+  if (c && typeof c === 'object') shape = 'o' in c ? `<div class="sent-order">${c.o.map(i => `<span class="c${i}">${SHAPES[i]}</span>`).join('')}</div>` : `<div class="big-emoji">${'v' in c ? '🎚️' : '📍'}</div>${'v' in c ? `<p class="sent-val">${esc(fmtVal(cur, c.v))}</p>` : ''}`;
   if (c == null && $('.answered-p')) return;
   setScreen(`<div class="p-screen answered-p">${pTop()}<div class="p-mid">${shape}<h2>Svar skickat!</h2><p class="muted">Väntar på de andra… ⏳</p></div></div>`, 'scr-player');
 }
 function renderPResult(m) {
   const near = !m.ok && m.pts >= 200;
   const cls = m.ok ? 'ok' : near ? 'near' : 'bad';
-  const head = m.ok ? 'Rätt!' : near ? 'Nära!' : (m.answered ? (m.kind === 'map' || m.kind === 'slider' ? 'För långt ifrån' : 'Fel svar') : 'Tiden tog slut');
+  const head = m.ok ? 'Rätt!' : near ? 'Nära!' : (m.answered ? (m.kind === 'map' || m.kind === 'slider' ? 'För långt ifrån' : m.kind === 'order' && m.pts > 0 ? 'Nästan!' : 'Fel svar') : 'Tiden tog slut');
+  const st = m.stole, rb = m.robbed;
+  const extra = [m.dbl ? '<div class="double-banner small">⭐ Dubbla poäng!</div>' : '',
+    st && st.amt ? `<div class="steal-msg ok">💰 Du stal ${fmt(st.amt)} p från ${esc(st.avatar)} ${esc(st.name)}!</div>` : st && st.fail ? '<div class="steal-msg">💰 Stölden misslyckades – fel svar</div>' : st && st.none ? '<div class="steal-msg">💰 Ingen att stjäla från – du leder redan!</div>' : '',
+    rb ? `<div class="steal-msg bad">😱 ${esc(rb.avatar)} ${esc(rb.name)} stal ${fmt(rb.amt)} p från dig!</div>` : ''].join('');
+  const teamTxt = m.team ? `<div class="res-team">${m.team.e} ${esc(m.team.n)}: ${ordinal(m.team.rank)} av ${m.team.of}${m.team.up > 0 ? ' ▲' : m.team.up < 0 ? ' ▼' : ''}</div>` : '';
   const rankTxt = m.rank === 1 ? (m.of > 1 ? 'Du leder! 🏆' : 'Du är etta! 🏆') : `Du ligger på ${ordinal(m.rank)} plats` + (m.ahead ? `<br><small>${fmt(m.ahead.gap)} p efter ${esc(m.ahead.name)}</small>` : '');
   setScreen(`<div class="p-screen result-p ${cls}">${pTop()}<div class="p-mid">
     <div class="res-ico">${m.ok ? '✓' : near ? '≈' : '✕'}</div><h1>${head}</h1>
     ${m.pts > 0 ? `<div class="pts">+${fmt(m.pts)}</div>` : ''}${!m.ok ? `<p class="right-was">Rätt svar: <b>${esc(m.correctText)}</b></p>` : ''}
     ${m.detail ? `<p class="res-detail">${esc(m.detail)}</p>` : ''}
-    ${m.streak >= 2 ? `<div class="streak-big">🔥 ${m.streak} rätt i rad!</div>` : ''}
-    <div class="res-rank">${rankTxt}</div><div class="res-score">Totalt ${fmt(m.score)} p</div></div></div>`, 'scr-player');
-  if (m.ok || near) Sound.correct(); else Sound.wrong();
+    ${m.streak >= 2 ? `<div class="streak-big">🔥 ${m.streak} rätt i rad!</div>` : ''}${extra}
+    <div class="res-rank">${rankTxt}</div>${teamTxt}<div class="res-score">Totalt ${fmt(m.score)} p</div></div></div>`, 'scr-player');
+  if (st && st.amt) Sound.steal(); else if (m.ok || near) Sound.correct(); else Sound.wrong();
   try { navigator.vibrate && navigator.vibrate(m.ok || near ? [30, 40, 30] : 120); } catch {}
 }
 function renderPWait() { setScreen(`<div class="p-screen">${pTop()}<div class="p-mid"><div class="big-emoji">👀</div><h2>Titta på storskärmen</h2><p class="muted">Du är med från nästa fråga.</p></div></div>`, 'scr-player'); }
@@ -1520,7 +1990,8 @@ function renderPEnd(m) {
   const medal = ['🥇', '🥈', '🥉'][m.rank - 1] || '🎖️';
   setScreen(`<div class="p-screen end-p ${m.rank <= 3 ? 'top' : ''}">${pTop()}<div class="p-mid">
     <div class="medal">${medal}</div><h1>${m.rank === 1 ? 'Du vann!' : `${ordinal(m.rank)} plats`}</h1>
-    <div class="res-score">${fmt(m.score)} poäng</div><p class="muted">av ${m.of} spelare</p>
+    <div class="res-score">${fmt(m.score)} poäng</div><p class="muted">av ${m.of} spelare${m.right != null ? ` · ${m.right} rätt` : ''}</p>
+    ${m.team ? `<div class="res-team big">${m.team.rank === 1 ? '🏆 ' : ''}${m.team.e} ${esc(m.team.n)} kom ${ordinal(m.team.rank)}${m.team.rank === 1 ? ' – ni vann!' : ''}</div>` : ''}
     <p class="muted small">Stanna kvar – värden kan starta en ny omgång.</p></div></div>`, 'scr-player');
   if (m.rank <= 3) { Sound.fanfare(); confetti(3500); }
 }
@@ -1715,6 +2186,6 @@ window.qcBack = () => {
   if (b) b.click(); else renderHome();
   return true;
 };
-window.QK = { Host, Player, Solo, buildQuiz, Sp }; // för felsökning
+window.QK = { Host, Player, Solo, buildQuiz, Sp, Stats, renderStats }; // för felsökning
 boot();
 })();
