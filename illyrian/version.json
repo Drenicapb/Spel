@@ -1,8 +1,8 @@
 {
- "v": "7.9",
- "notes": "Snyggare och enklare: menyn är ett överskådligt rutnät, en snabbguide visar skärmen för nya spelare, och du kan trycka på pengar, forskning och trupper i toppraden för att öppna rätt panel. Mindre verktygsknappar och tydligare val på mobil.",
+ "v": "8.0",
+ "notes": "Nytt modernt gränssnitt med egna högupplösta ikoner och flaggor, skarpare bilder på trupper, flyg och fartyg. Nytt: krigsdimma, rymdprogram med satelliter, cyberattacker, partisaner, kärnvinter, listan Att göra, världshistorien som film och export/import av sparade spel.",
  "files": {
-  "index.html": "12746e86b9d8c7d805079d54ede1c9f8f746f2dcd2350b25607002fe1f785d59",
+  "index.html": "cde386cf24c2e114d0c5dfbce5285b22e020583cbe858d085324d751b60d658a",
   "terrain.jpg": "536ce4cd7fb3326eeec71c031b3acabd8ac4f0167b6dc7d3491a2770193b3f75",
   "clouds.webp": "ac9553190ed3a5ec0f832dd5e9304352c690c4423edf6ac898ff1d3b63527af4",
   "cover.jpg": "3fb4f334becec86737118bd07a0ba83e0ad2d0c7d47e4d4b15e41219e219ee81",
