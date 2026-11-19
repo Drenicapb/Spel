@@ -48,6 +48,11 @@ Utöver vanliga frågor (4 alternativ, sant/falskt och musik) finns fem egna kat
 
 Färdiga quiz: *Kartquiz*, *Gissa personen*, *Närmast vinner*, *Flaggquiz*, *Sortera rätt* och *Kahoot-mix* (alla typer blandade). Musikfrågorna kan också fråga efter vilket **år** låten kom.
 
+## Musiken – bara kända låtar
+- Musikfrågorna använder bara låtar av kända artister (listan finns i `tools/kanda-artister.txt`, cirka 460 artister) och bara deras mest spelade låtar – högst 8 per artist. Temaquizen 90-talet, 00-talet och Hiphop är rensade på samma sätt.
+- **👎 Ta bort låten**: när svaret visas står låten och artisten under frågan, med en 👎-knapp. Tryck på den så kommer låten aldrig med igen på den enheten. Borttagna låtar syns under *Mina quiz & låtar*, där du kan ta tillbaka dem.
+- Vill du lägga till eller ta bort en hel artist: ändra i `tools/kanda-artister.txt` och kör `node tools/rensa-latar.js` (ska låtar komma tillbaka måste originalfilerna hämtas först – se kommentaren överst i skriptet).
+
 ## Topplistan, pallen och statistik
 - Topplistan animeras: raderna glider till sina nya platser, poängen räknas upp och ▲/▼ visar vem som klättrat. I lagläge visas lagen överst.
 - På slutet reser sig pallen en plats i taget (3:an, 2:an, sist vinnaren) med trumvirvel.
@@ -81,4 +86,4 @@ Låtarna: 281 handplockade låtar (`songs.js`) plus cirka 21 400 låtar från et
 
 Loggan och app-ikonen finns i `img/`. På mobilen kan sidan läggas till på hemskärmen (Dela → *Lägg till på hemskärmen*) och får då ikonen.
 
-Innehåll: cirka 7 900 frågor i 18 kategorier och 4 åldersgrupper (bland annat 382 kartfrågor, 188 ledtrådsfrågor och 326 närmast-rätt-frågor), plus cirka 21 600 Spotify-låtar. Kartorna är ritade från Natural Earth (fri data). Appen minns vilka frågor ni redan har fått och tar nya först, och blandar olika sorters frågor så att samma typ inte kommer många gånger i rad.
+Innehåll: cirka 7 900 frågor i 18 kategorier och 4 åldersgrupper (bland annat 382 kartfrågor, 188 ledtrådsfrågor och 326 närmast-rätt-frågor), plus cirka 2 200 kända Spotify-låtar. Kartorna är ritade från Natural Earth (fri data). Appen minns vilka frågor ni redan har fått och tar nya först, och blandar olika sorters frågor så att samma typ inte kommer många gånger i rad.

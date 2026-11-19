@@ -339,7 +339,23 @@ function qrSvg(text) {
 const send = (conn, msg) => { try { if (conn && conn.open) conn.send(msg); } catch {} };
 
 // ───────────────────────── Quizgenerator ─────────────────────────
-const songPool = () => [...SONGS, ...store.get('mysongs', [])];
+// Låtar man har tagit bort med 👎 (sparas på enheten) kommer aldrig med igen
+const blockedIds = () => new Set(store.get('blocksongs', []).map(x => x.id));
+const songPool = () => { const bl = blockedIds(); return [...SONGS, ...store.get('mysongs', [])].filter(s => !bl.has(s.id)); };
+function blockSong(track) {
+  const list = store.get('blocksongs', []); if (list.some(x => x.id === track.id)) return;
+  list.push({ id: track.id, t: track.t, ar: track.ar }); store.set('blocksongs', list);
+}
+function songInfoHtml(q) {
+  const t = q.track, gone = blockedIds().has(t.id);
+  return `<div class="song-info">🎵 <b>${esc(t.t)}</b> – ${esc(t.ar)}${t.y ? ` (${t.y})` : ''} <button class="btn ghost small block-song" data-block="${esc(t.id)}" ${gone ? 'disabled' : ''} title="Låten kommer inte med i fler quiz">${gone ? '✓ Borttagen' : '👎 Ta bort låten'}</button></div>`;
+}
+document.addEventListener('click', e => {
+  const b = e.target.closest('[data-block]'); if (!b || b.disabled) return;
+  const q = (Host.phase !== 'idle' && Host.quiz ? Host.quiz : Solo.quiz || {}).questions || [];
+  const tr = (q.find(x => x.track && x.track.id === b.dataset.block) || {}).track; if (!tr) return;
+  blockSong(tr); b.disabled = true; b.textContent = '✓ Borttagen'; toast('👎 Låten kommer inte med fler gånger');
+});
 const bandOf = q => Math.min(...String(q.a || '0123').split('').map(Number));
 function autoTime(type, age, setting) {
   const min = { music: 20, clue: 24, map: 15, slider: 15, order: 20, flag: 12 }[type] || 0;
@@ -485,7 +501,8 @@ const THEMES = [
 const TPAC_ALBUMS = ['All Eyez On Me', 'Me Against The World', 'Strictly 4 My N.I.G.G.A.Z...', '2Pacalypse Now', 'The Don Killuminati: The 7 Day Theory', 'R U Still Down? [Remember Me]', 'Until The End Of Time', 'Loyal To The Game', 'Better Dayz'];
 function themePool(id) {
   const raw = (window.QK_THEME_SONGS || {})[id] || [];
-  return raw.map(([sid, t, ar, y, yok, alb], i) => ({ id: sid, t, ar, y, yok: !!yok, alb, rank: i }));
+  const bl = blockedIds();
+  return raw.map(([sid, t, ar, y, yok, alb], i) => ({ id: sid, t, ar, y, yok: !!yok, alb, rank: i })).filter(x => !bl.has(x.id));
 }
 function themeCount(id) {
   const songs = themePool(id).length, facts = BANK.filter(q => q.tema === id).length;
@@ -1328,7 +1345,7 @@ function renderHostQuestion(q, dist, guesses = []) {
   const special = SPECIAL.has(q.type);
   const total = H.players.size, answered = reveal ? (special ? guesses.length : dist.reduce((a, b) => a + b, 0)) : H.answers.size;
   const media = q.type === 'music' ? `<div id="mediaSlot" class="media-slot">${musicSlotInner(q)}</div>` : '';
-  const songInfo = reveal && q.type === 'music' && q.track && q.track.t ? `<div class="song-info">🎵 <b>${esc(q.track.t)}</b> – ${esc(q.track.ar)}${q.track.y ? ` (${q.track.y})` : ''}</div>` : '';
+  const songInfo = reveal && q.type === 'music' && q.track && q.track.t ? songInfoHtml(q) : '';
   let center = media + songInfo, below = optionTiles(q, dist);
   if (q.type === 'clue') {
     const i = reveal ? q.clues.length - 1 : Math.max(0, H.clueShown ?? 0);
@@ -1645,7 +1662,7 @@ function renderSoloQuestion(q, res) {
     const st = reveal ? (i === q.correct ? 'right' : i === res.c ? 'picked wrong' : 'wrong') : '';
     return `<button class="p-opt c${tf ? (i === 0 ? 1 : 0) : i} ${st}" data-c="${i}"><span class="shape">${tf ? TF_ICONS[i] : SHAPES[i]}</span><span class="ptext">${esc(o)}</span>${reveal && i === q.correct ? '<span class="tick">✓</span>' : ''}</button>`;
   }).join('');
-  const songInfo = reveal && q.type === 'music' && q.track && q.track.t ? `<div class="song-info">🎵 <b>${esc(q.track.t)}</b> – ${esc(q.track.ar)}${q.track.y ? ` (${q.track.y})` : ''}</div>` : '';
+  const songInfo = reveal && q.type === 'music' && q.track && q.track.t ? songInfoHtml(q) : '';
   const detail = reveal && res.a ? gradeDetail(q, res.a, res.g) : '';
   const banner = !reveal ? '' : res.ok
     ? `<div class="solo-res ok">✓ Rätt! <b>+${fmt(res.pts)}</b>${S.streak >= 2 ? ` · 🔥 ${S.streak} i rad` : ''}${detail ? `<small>${esc(detail)}</small>` : ''}</div>`
@@ -2031,6 +2048,9 @@ const Editor = {
         <p class="muted small">Låtar du lägger till här blandas in i musikfrågorna när quiz skapas automatiskt. Kopiera länken i Spotify (Dela → Kopiera länk).</p>
         ${songs.length ? `<ul class="ed-list">${songs.map((s, i) => `<li><div><b>${esc(s.t)}</b><small>${esc(s.ar)}${s.y ? ' · ' + s.y : ''}</small></div><div class="row"><a class="btn small ghost" href="${spotifyLink(s.id)}" target="_blank" rel="noopener">▶</a><button class="btn small ghost danger-t" data-delsong="${i}" aria-label="Radera">🗑</button></div></li>`).join('')}</ul>` : ''}
       </section>
+      ${(() => { const bl = store.get('blocksongs', []); return bl.length ? `<section class="ed-sec"><div class="ed-head"><h3>👎 Borttagna låtar (${bl.length})</h3><button class="btn ghost small" id="unblockAll">Ta tillbaka alla</button></div>
+        <p class="muted small">Låtar du har tagit bort med 👎 när svaret visades. De kommer inte med i musikfrågorna.</p>
+        <ul class="ed-list">${bl.slice().reverse().map(x => `<li><div><b>${esc(x.t)}</b><small>${esc(x.ar)}</small></div><div class="row"><button class="btn small ghost" data-unblock="${esc(x.id)}">↩ Ta tillbaka</button></div></li>`).join('')}</ul></section>` : ''; })()}
       <section class="ed-sec"><h3>💾 Spara &amp; dela</h3><p class="muted small">Exportera dina quiz och låtar till en fil som du kan föra över till en annan enhet.</p>
         <div class="row"><button class="btn ghost" id="exp">⬇️ Exportera</button><button class="btn ghost" id="copy">📋 Kopiera som text</button><label class="btn ghost">⬆️ Importera fil<input type="file" id="imp" accept=".json,application/json" hidden></label><button class="btn ghost" id="paste">📥 Klistra in text</button></div>
       </section>
@@ -2042,6 +2062,8 @@ const Editor = {
     $$('[data-del]').forEach(b => b.onclick = async () => { if (await confirmDlg('Radera quizet?', 'Radera')) { this.saveAll(this.all().filter(q => q.id !== b.dataset.del)); this.list(); } });
     $$('[data-delsong]').forEach(b => b.onclick = async () => { if (await confirmDlg('Ta bort låten?', 'Ta bort')) { const s = store.get('mysongs', []); s.splice(+b.dataset.delsong, 1); store.set('mysongs', s); this.list(); } });
     $('#addSong').onclick = () => this.songForm();
+    $$('[data-unblock]').forEach(b => b.onclick = () => { store.set('blocksongs', store.get('blocksongs', []).filter(x => x.id !== b.dataset.unblock)); this.list(); });
+    $('#unblockAll') && ($('#unblockAll').onclick = async () => { if (await confirmDlg('Ta tillbaka alla borttagna låtar?', 'Ta tillbaka')) { store.set('blocksongs', []); this.list(); } });
     const payload = () => JSON.stringify({ format: 'quizkalas', version: 1, quizzes: this.all(), songs: store.get('mysongs', []) }, null, 1);
     $('#exp').onclick = () => { if (IN_APP && AppBridge.saveFile) { toast(AppBridge.saveFile('quiz-champions-mina-quiz.json', payload()) ? 'Sparad i Hämtade filer 📁' : 'Kunde inte spara filen'); return; } const a = document.createElement('a'); a.href = URL.createObjectURL(new Blob([payload()], { type: 'application/json' })); a.download = 'quiz-champions-mina-quiz.json'; document.body.appendChild(a); a.click(); a.remove(); };
     $('#copy').onclick = async () => { try { await navigator.clipboard.writeText(payload()); toast('Kopierat! 📋'); } catch { dialog(`<p>Kopiera texten:</p><textarea class="ta" rows="8">${esc(payload())}</textarea>`, [{ label: 'Klar', value: 1, cls: 'primary' }]); } };

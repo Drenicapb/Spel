@@ -679,3 +679,5 @@ body.reconnecting #reconn { display: flex; }
   .tb-row .tb-av { display: none; }
   .flag-img { width: 86vw; }
 }
+.song-info .block-song { margin-left: .6em; vertical-align: middle; font-size: .6em; padding: .3em .8em; }
+.solo .song-info .block-song { font-size: .8rem; }
