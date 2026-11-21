@@ -53,6 +53,11 @@ Färdiga quiz: *Kartquiz*, *Gissa personen*, *Närmast vinner*, *Flaggquiz*, *So
 - **👎 Ta bort låten**: när svaret visas står låten och artisten under frågan, med en 👎-knapp. Tryck på den så kommer låten aldrig med igen på den enheten. Borttagna låtar syns under *Mina quiz & låtar*, där du kan ta tillbaka dem.
 - Vill du lägga till eller ta bort en hel artist: ändra i `tools/kanda-artister.txt` och kör `node tools/rensa-latar.js` (ska låtar komma tillbaka måste originalfilerna hämtas först – se kommentaren överst i skriptet).
 
+## Albansk musik
+- Temat **🇽🇰 Muzikë shqip** har 77 låtar på albanska av Mozzik, Noizy, Dhurata Dora, Butrint Imeri, Yll Limani, Elvana Gjata, Kida, Ledri Vula, Tayna och Dafina Zeqiri, plus faktafrågor om artisterna. Felsvaren väljs bland andra albanska låtar och artister, så frågorna blir inte för lätta.
+- Samma låtar finns också i temat **🇦🇱 Albansk musik** och i de vanliga musikfrågorna.
+- Saknas en låt (till exempel av Ilir Shaqiri eller Unikkatil)? Lägg till den under *Mina quiz & låtar → + Lägg till låt* med Spotify-länken (Dela → Kopiera länk).
+
 ## Topplistan, pallen och statistik
 - Topplistan animeras: raderna glider till sina nya platser, poängen räknas upp och ▲/▼ visar vem som klättrat. I lagläge visas lagen överst.
 - På slutet reser sig pallen en plats i taget (3:an, 2:an, sist vinnaren) med trumvirvel.

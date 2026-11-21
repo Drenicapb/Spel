@@ -122,6 +122,17 @@
   TY(Z,'123',2,'Vilket år dog Michael Jackson?',2009);
   TY(Z,'23',2,'Vilket år kom den första iPoden?',2001);
 
+  // ───────── Muzikë shqip (låtar på albanska) ─────────
+  const Q = 'shqip';
+  T(Q,'123',2,'I vilken tysk stad föddes Dhurata Dora?','Nürnberg','Berlin','Hamburg','München');
+  T(Q,'123',2,'Vilken algerisk rappare gjorde hiten "Zemër" tillsammans med Dhurata Dora?','Soolking','Gims','Maes','Booba');
+  T(Q,'123',2,'Vilken artist har det riktiga namnet Gramoz Aliu?','Mozzik','Noizy','Ledri Vula','Kida');
+  T(Q,'23',2,'Vilken albansk stad kommer rapparen Noizy ifrån?','Durrës','Tirana','Shkodër','Vlorë');
+  T(Q,'23',3,'I vilket land föddes sångaren Butrint Imeri?','Tyskland','Kosovo','Albanien','Schweiz');
+  T(Q,'23',2,'I vilket tv-program blev Yll Limani känd 2011?','The Voice of Albania','Idol','X Factor Albania','Albania\'s Got Talent');
+  T(Q,'123',2,'Vilken världsstjärna gjorde en remix av Taynas "Si Ai"?','Marshmello','David Guetta','Calvin Harris','Avicii');
+  T(Q,'23',2,'Vilken stad i Kosovo kommer rapparen Unikkatil från – en av pionjärerna inom albansk hiphop?','Pristina','Prizren','Peja','Gjakova');
+
   // ───────── Albansk musik ─────────
   const A = 'albansk';
   T(A,'123',2,'I vilken stad kommer Dua Lipas föräldrar ifrån?','Pristina','Tirana','Prizren','Durrës');

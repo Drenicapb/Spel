@@ -396,6 +396,9 @@ function orderPool(list, used, interleaveBands) {
 }
 const SONG_FILMS = ['Frost', 'Frost 2', 'Vaiana', 'Lejonkungen', 'Encanto', 'Den lilla sjöjungfrun', 'Aladdin', 'Skönheten och odjuret', 'Trassel', 'Coco',
   'Toy Story', 'Djungelboken', 'Pippi Långstrump', 'Dumma mig', 'Dumma mig 2', 'Trolls', 'Mary Poppins', 'Pocahontas', 'Spider-Man: Into the Spider-Verse', 'Mulan'];
+// "Noizy & Yll Limani" och "Yll Limani" delar artist – får inte vara felsvar till varandra
+const artistsOf = a => String(a).toLowerCase().split(/\s*(?:&|,| x | feat\.? | ft\.? )\s*/).filter(Boolean);
+const sameArtist = (a, b) => { const B = new Set(artistsOf(b)); return artistsOf(a).some(x => B.has(x)); };
 function musicQuestion(s, age, all) {
   const variants = age === '0' ? ['title', 'artist'] : ['artist', 'title', 'artist', 'title'];
   if (s.y && age !== '0') variants.push('decade');
@@ -404,9 +407,11 @@ function musicQuestion(s, age, all) {
   let v = variants[Math.floor(Math.random() * variants.length)];
   // Felsvar: låtar från ungefär samma tid (och helst samma genre) – ett urval räcker även med 20 000 låtar
   const yr = x => x.y || x.yr || 2005;
+  // Albanska låtar får felsvar bland andra albanska låtar
+  const sq = s.g === 'sq' ? all.filter(x => x.g === 'sq') : null; if (sq && sq.length >= 8) all = sq;
   const sample = all.length > 600 ? Array.from({ length: 600 }, () => all[Math.floor(Math.random() * all.length)]) : all;
   const near = list => list.map(x => ({ x, k: Math.abs(yr(x) - yr(s)) + Math.random() * 18 + (s.g && x.g && x.g !== s.g ? 12 : 0) + (x.p != null && x.p < 35 ? 8 : 0) })).sort((a, b) => a.k - b.k).map(o => o.x);
-  const pickUnique = (key) => { const seen = new Set([String(s[key]).toLowerCase()]); const out = []; for (const x of near(sample)) { const val = String(x[key]); if (!seen.has(val.toLowerCase())) { seen.add(val.toLowerCase()); out.push(val); } if (out.length === 3) break; } return out; };
+  const pickUnique = (key) => { const seen = new Set([String(s[key]).toLowerCase()]); const out = []; for (const x of near(sample)) { const val = String(x[key]); if (!seen.has(val.toLowerCase()) && (key !== 'ar' || !sameArtist(val, s.ar))) { seen.add(val.toLowerCase()); out.push(val); } if (out.length === 3) break; } return out; };
   let text, right, wrong;
   if (v === 'year') {
     const near = shuffle([-4, -3, -2, -1, 1, 2, 3, 4].map(d => s.y + d).filter(y => y <= new Date().getFullYear())).slice(0, 3);
@@ -494,15 +499,18 @@ const THEMES = [
   { id: 'hiphop', e: '🎤', n: 'Hiphop', d: 'Gissa artist, låt och år – från gangsta rap och södra USA till dagens trap, plus hiphopfakta.' },
   { id: '90tal', e: '📼', n: '90-talet', d: 'Pop, rock, eurodisco och R&B från 1990–1999.' },
   { id: '00tal', e: '💿', n: '00-talet', d: 'Hits från 2000–2009: pop, rock, hiphop och R&B.' },
-  { id: 'albansk', e: '🇦🇱', n: 'Albansk musik', d: 'Dua Lipa, Ava Max, Bebe Rexha, Rita Ora med flera – plus Eurovision, Festivali i Këngës och folkmusik.' },
+  { id: 'shqip', e: '🇽🇰', n: 'Muzikë shqip', d: 'Låtar på albanska: Mozzik, Noizy, Dhurata Dora, Butrint Imeri, Yll Limani, Elvana Gjata, Kida, Ledri Vula, Tayna med flera.' },
+  { id: 'albansk', e: '🇦🇱', n: 'Albansk musik', d: 'Dua Lipa, Ava Max, Bebe Rexha, Rita Ora, Mozzik, Dhurata Dora med flera – plus Eurovision, Festivali i Këngës och folkmusik.' },
   { id: '2pac', e: '👑', n: '2Pac', d: 'Låtar, album och livet för Tupac Shakur.' },
   { id: 'jul', e: '🎄', n: 'Julmusik', d: 'Julklassiker att lyssna på och frågor om julens låtar – svenska och internationella.' },
 ];
 const TPAC_ALBUMS = ['All Eyez On Me', 'Me Against The World', 'Strictly 4 My N.I.G.G.A.Z...', '2Pacalypse Now', 'The Don Killuminati: The 7 Day Theory', 'R U Still Down? [Remember Me]', 'Until The End Of Time', 'Loyal To The Game', 'Better Dayz'];
 function themePool(id) {
-  const raw = (window.QK_THEME_SONGS || {})[id] || [];
-  const bl = blockedIds();
-  return raw.map(([sid, t, ar, y, yok, alb], i) => ({ id: sid, t, ar, y, yok: !!yok, alb, rank: i })).filter(x => !bl.has(x.id));
+  const T = window.QK_THEME_SONGS || {}, bl = blockedIds();
+  // Albansk musik = de internationella stjärnorna + låtarna på albanska
+  const raw = id === 'albansk' ? [...(T.albansk || []), ...(T.shqip || [])] : T[id] || [];
+  const sqIds = new Set((T.shqip || []).map(x => x[0]));
+  return raw.map(([sid, t, ar, y, yok, alb], i) => ({ id: sid, t, ar, y, yok: !!yok, alb, rank: i, g: sqIds.has(sid) ? 'sq' : undefined })).filter(x => !bl.has(x.id));
 }
 function themeCount(id) {
   const songs = themePool(id).length, facts = BANK.filter(q => q.tema === id).length;
@@ -534,7 +542,8 @@ function buildThemeQuiz(id, count = THEME_COUNT) {
       // musicQuestion väljer själv titel eller artist – styr om till den variant vi ville ha
       if ((pick === 'title') !== /heter låten/.test(m.text)) {
         const key = pick === 'title' ? 't' : 'ar', seen = new Set([String(s[key]).toLowerCase()]), wrong = [];
-        for (const x of shuffle(songs)) { const val = String(x[key]); if (!seen.has(val.toLowerCase())) { seen.add(val.toLowerCase()); wrong.push(val); } if (wrong.length === 3) break; }
+        const pool = s.g === 'sq' && songs.filter(x => x.g === 'sq').length >= 8 ? songs.filter(x => x.g === 'sq') : songs;
+        for (const x of shuffle(pool)) { const val = String(x[key]); if (!seen.has(val.toLowerCase()) && (key !== 'ar' || !sameArtist(val, s.ar))) { seen.add(val.toLowerCase()); wrong.push(val); } if (wrong.length === 3) break; }
         const opts = shuffle([s[key], ...wrong]);
         q = { type: 'music', cat: 'spotify', text: pick === 'title' ? 'Vad heter låten? 🎧' : 'Vem sjunger eller spelar låten? 🎧', opts, correct: opts.indexOf(s[key]) };
       } else q = m;
@@ -2208,6 +2217,6 @@ window.qcBack = () => {
   if (b) b.click(); else renderHome();
   return true;
 };
-window.QK = { Host, Player, Solo, buildQuiz, Sp, Stats, renderStats }; // för felsökning
+window.QK = { Host, Player, Solo, buildQuiz, buildThemeQuiz, Sp, Stats, renderStats }; // för felsökning
 boot();
 })();
