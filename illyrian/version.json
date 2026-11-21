@@ -1,8 +1,8 @@
 {
- "v": "8.0",
- "notes": "Nytt modernt gränssnitt med egna högupplösta ikoner och flaggor, skarpare bilder på trupper, flyg och fartyg. Nytt: krigsdimma, rymdprogram med satelliter, cyberattacker, partisaner, kärnvinter, listan Att göra, världshistorien som film och export/import av sparade spel.",
+ "v": "8.1",
+ "notes": "Ny formgivning: ett illyriskt krigsrum i brons, järn och örnrött med en vävd albansk bård, nya typsnitt som är lättare att läsa på mobilen, en röd Nästa tur-knapp och en tydligare startskärm.",
  "files": {
-  "index.html": "cde386cf24c2e114d0c5dfbce5285b22e020583cbe858d085324d751b60d658a",
+  "index.html": "73cf0b416a467ced2c95f32f6ad239a09928ba3d35cdc44ea9d4e528e9d6b539",
   "terrain.jpg": "536ce4cd7fb3326eeec71c031b3acabd8ac4f0167b6dc7d3491a2770193b3f75",
   "clouds.webp": "ac9553190ed3a5ec0f832dd5e9304352c690c4423edf6ac898ff1d3b63527af4",
   "cover.jpg": "3fb4f334becec86737118bd07a0ba83e0ad2d0c7d47e4d4b15e41219e219ee81",
