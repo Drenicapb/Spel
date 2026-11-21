@@ -132,6 +132,13 @@
   T(Q,'23',2,'I vilket tv-program blev Yll Limani känd 2011?','The Voice of Albania','Idol','X Factor Albania','Albania\'s Got Talent');
   T(Q,'123',2,'Vilken världsstjärna gjorde en remix av Taynas "Si Ai"?','Marshmello','David Guetta','Calvin Harris','Avicii');
   T(Q,'23',2,'Vilken stad i Kosovo kommer rapparen Unikkatil från – en av pionjärerna inom albansk hiphop?','Pristina','Prizren','Peja','Gjakova');
+  T(Q,'123',1,'I vilken svensk stad föddes sångerskan Dafina Zeqiri?','Varberg','Göteborg','Malmö','Borås');
+  T(Q,'123',2,'Vilken svensk rappare gjorde "Ku Je Ti" tillsammans med Dafina Zeqiri?','Ricky Rich','Einár','Yasin','Dree Low');
+  T(Q,'123',2,'Vilken av Era Istrefis låtar blev en världshit 2016?','Bonbon','Hala','Ama','Bebe');
+  T(Q,'123',2,'Era Istrefi sjöng den officiella låten "Live It Up" till ett fotbolls-VM. Vilket år?','2018','2014','2010','2022');
+  T(Q,'23',3,'I vilken tysk stad växte Ardian Bujupi upp?','Heidelberg','Hamburg','Köln','Dresden');
+  T(Q,'23',3,'Vad heter rapparen Majk egentligen?','Kastriot Rexha','Gramoz Aliu','Xhonatan Isufi','Viktor Palokaj');
+  T(Q,'23',3,'Vad heter rapparen Don Xhoni egentligen?','Xhonatan Isufi','Kastriot Rexha','Gramoz Aliu','Getoar Selimi');
 
   // ───────── Albansk musik ─────────
   const A = 'albansk';

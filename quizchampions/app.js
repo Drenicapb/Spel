@@ -499,7 +499,7 @@ const THEMES = [
   { id: 'hiphop', e: '🎤', n: 'Hiphop', d: 'Gissa artist, låt och år – från gangsta rap och södra USA till dagens trap, plus hiphopfakta.' },
   { id: '90tal', e: '📼', n: '90-talet', d: 'Pop, rock, eurodisco och R&B från 1990–1999.' },
   { id: '00tal', e: '💿', n: '00-talet', d: 'Hits från 2000–2009: pop, rock, hiphop och R&B.' },
-  { id: 'shqip', e: '🇽🇰', n: 'Muzikë shqip', d: 'Låtar på albanska: Mozzik, Noizy, Dhurata Dora, Butrint Imeri, Yll Limani, Elvana Gjata, Kida, Ledri Vula, Tayna med flera.' },
+  { id: 'shqip', e: '🇽🇰', n: 'Muzikë shqip', d: 'Låtar på albanska: Mozzik, Noizy, Dhurata Dora, Butrint Imeri, Yll Limani, Elvana Gjata, Era Istrefi, Dafina Zeqiri, Ardian Bujupi, Kida, Ledri Vula, Tayna med flera.' },
   { id: 'albansk', e: '🇦🇱', n: 'Albansk musik', d: 'Dua Lipa, Ava Max, Bebe Rexha, Rita Ora, Mozzik, Dhurata Dora med flera – plus Eurovision, Festivali i Këngës och folkmusik.' },
   { id: '2pac', e: '👑', n: '2Pac', d: 'Låtar, album och livet för Tupac Shakur.' },
   { id: 'jul', e: '🎄', n: 'Julmusik', d: 'Julklassiker att lyssna på och frågor om julens låtar – svenska och internationella.' },
