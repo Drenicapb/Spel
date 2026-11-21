@@ -73,13 +73,15 @@ function buzz(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch (e
 
 // ---------- Vägarna och rondellen ----------
 // Två vägar matar in Hannisar i rondellen. I rondellen snurrar de tills en bil i rätt färg står vid hållplatsen.
-const RING = { cx: 200, cy: 206, rx: 100, ry: 56 };
-const RING_V = 80;                     // px/s
-const LANES = [-12.5, 0, 12.5];
-const ENTRY_DEG = [212, 328];          // vänster och höger infart (medurs från höger, y nedåt)
-const ringPt = deg => [RING.cx + RING.rx * Math.cos(deg * Math.PI / 180), RING.cy + RING.ry * Math.sin(deg * Math.PI / 180)];
-const LEFT_PTS = [[46, -420], [46, -120], [46, 20], [60, 80], [92, 128], ringPt(ENTRY_DEG[0])];
-const RIGHT_PTS = LEFT_PTS.map(([x, y], i) => i === LEFT_PTS.length - 1 ? ringPt(ENTRY_DEG[1]) : [400 - x, y]);
+// Rondellen är droppformad med spetsen ner mot stationen (punkterna går medurs).
+const RING_PTS = [[200, 262], [164, 238], [136, 206], [128, 172], [142, 142], [170, 126], [200, 122], [230, 126], [258, 142], [272, 172], [264, 206], [236, 238]];
+const RING_TIP = [200, 262];
+const RING_V = 70;                     // px/s
+const LANES = [-12.5, 0, 12.5];        // vägarnas filer
+const RLANES = [-7.5, 7.5];            // rondellens filer
+const ENTRY_PTS = [[136, 168], [264, 168]];
+const LEFT_PTS = [[46, -420], [46, -120], [46, 20], [62, 78], [100, 132], ENTRY_PTS[0]];
+const RIGHT_PTS = LEFT_PTS.map(([x, y], i) => i === LEFT_PTS.length - 1 ? ENTRY_PTS[1] : [400 - x, y]);
 
 function makePath(pts, closed) {
   const out = [];
@@ -109,17 +111,13 @@ function resample(out) {
   return { X, Y, TX, TY, len: X.length - 1, total: acc, raw: out };
 }
 const ROADS = [makePath(LEFT_PTS), makePath(RIGHT_PTS)];
-const RINGP = (() => {
-  const out = [];
-  for (let i = 0; i <= 720; i++) out.push(ringPt(i / 2));
-  return resample(out);
-})();
+const RINGP = makePath(RING_PTS, true);
 const RING_L = RINGP.total;
 const CELLS = Math.floor(RING_L / ROW);
 const CELL_SP = RING_L / CELLS;
-const ringArcOf = deg => { const [x, y] = ringPt(deg); let bi = 0, bd = 1e9; for (let i = 0; i <= RINGP.len; i++) { const d = (RINGP.X[i] - x) ** 2 + (RINGP.Y[i] - y) ** 2; if (d < bd) { bd = d; bi = i; } } return bi; };
-const ENTRY_S = ENTRY_DEG.map(ringArcOf);
-const PICK_S = ringArcOf(90);
+const ringArcOf = ([x, y]) => { let bi = 0, bd = 1e9; for (let i = 0; i <= RINGP.len; i++) { const d = (RINGP.X[i] - x) ** 2 + (RINGP.Y[i] - y) ** 2; if (d < bd) { bd = d; bi = i; } } return bi; };
+const ENTRY_S = ENTRY_PTS.map(ringArcOf);
+const PICK_S = ringArcOf(RING_TIP);
 function pathAt(P, s, lat) {
   const i = clamp(Math.round(s), 0, P.len);
   return [P.X[i] - P.TY[i] * lat, P.Y[i] + P.TX[i] * lat];
@@ -254,7 +252,7 @@ function startLevel(n) {
     vehicles: L.vehicles.map(v => makeVeh(v.type, v.col, v.x, v.y, v.a, v.hidden)),
     garages: L.garages.map(g => Object.assign({}, g, { list: g.list.map(x => Object.assign({}, x)) })),
     roads: L.roads.map((q, ri) => q.map((c, i) => ({ c, ds: roadTarget(ri, i), dl: LANES[i % 3], hop: Math.random() * 6 }))),
-    ring: { off: 0, cells: Array.from({ length: CELLS }, () => [null, null, null]) },
+    ring: { off: 0, cells: Array.from({ length: CELLS }, () => [null, null]) },
     total: L.queue.length,
     slots: Array.from({ length: SLOT_N }, (_, i) => ({ i, x: slotX(i), y: ST.slotY, vip: i === 0, locked: i >= 6, veh: null })),
     flyers: [], parts: []
@@ -480,11 +478,11 @@ function stepRing(dt, pre) {
     for (const f of cell) if (f && f.ent < 1) f.ent = Math.min(1, f.ent + dt / .35);
     // hållplatsen: kliv på bilen med samma färg
     if (!pre && crossed(s0, s0 + d, PICK_S)) {
-      for (let l = 0; l < 3; l++) {
+      for (let l = 0; l < RLANES.length; l++) {
         const f = cell[l]; if (!f || f.ent < 1) continue;
         const v = dockFor(f.c);
         if (!v) continue;
-        const [x, y] = ringAt(s0 + d, LANES[l]);
+        const [x, y] = ringAt(s0 + d, RLANES[l]);
         cell[l] = null; v.inc++;
         G.flyers.push({ c: f.c, x0: x, y0: y - 4, v, t: 0, dur: .3 + l * .04 });
       }
@@ -496,7 +494,7 @@ function stepRing(dt, pre) {
       // jämn matning: den längre kön får företräde
       let room = cell.filter(f => !f).length;
       if (other.length > q.length) room = Math.floor(room / 2);
-      for (let l = 0; l < 3 && q.length && room > 0; l++) {
+      for (let l = 0; l < RLANES.length && q.length && room > 0; l++) {
         if (cell[l]) continue;
         room--;
         const p = q.shift();
@@ -510,7 +508,7 @@ function checkStuck(dt) {
   const busy = G.flyers.length || G.vehicles.some(v => v.anim || v.state === 'move' || v.state === 'leave' || (v.state === 'dock' && v.filled >= v.cap));
   if (!waiting() || busy || freeSlot()) { G.stuckT = 0; return; }
   const figs = ringFigs();
-  const full = figs.length >= CELLS * 3, roadsEmpty = !G.roads[0].length && !G.roads[1].length;
+  const full = figs.length >= CELLS * RLANES.length, roadsEmpty = !G.roads[0].length && !G.roads[1].length;
   if (figs.some(f => f.ent < 1) || figs.some(f => dockFor(f.c)) || !(full || roadsEmpty)) { G.stuckT = 0; return; }
   G.stuckT += dt;
   if (G.stuckT > .9) lose();
@@ -617,9 +615,13 @@ function buildStatic() {
   }
   // väg
   const road = (w, col) => {
-    g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath();
-    for (const P of [ROADS[0], ROADS[1], RINGP]) P.raw.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y));
-    g.moveTo(RING.cx, RING.cy + RING.ry); g.lineTo(RING.cx, ST.y0 + 4);
+    g.strokeStyle = col; g.lineCap = 'round'; g.lineJoin = 'round';
+    g.lineWidth = w; g.beginPath();
+    for (const P of [ROADS[0], ROADS[1]]) P.raw.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y));
+    g.stroke();
+    g.lineWidth = w - 13; g.beginPath();
+    RINGP.raw.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.closePath();
+    g.moveTo(RING_TIP[0], RING_TIP[1]); g.lineTo(RING_TIP[0], ST.y0 + 4);
     g.stroke();
   };
   g.save(); g.translate(2, 5); road(60, 'rgba(60,90,20,.25)'); g.restore();
@@ -628,9 +630,7 @@ function buildStatic() {
   road(47, '#8f89a6');
   // träd & buskar
   // rondellens mitt: liten blomsterrabatt
-  g.fillStyle = '#9fcb48'; g.beginPath(); g.ellipse(RING.cx, RING.cy, RING.rx - 26, RING.ry - 26, 0, 0, 7); g.fill();
-  g.strokeStyle = '#fff'; g.lineWidth = 3; g.stroke();
-  for (const [x, y, s, p] of [[200, 206, 15, 1], [160, 210, 9, 0], [240, 210, 9, 0], [200, 60, 18, 1], [140, 40, 12, 0], [260, 40, 12, 0], [130, 105, 13, 1], [270, 105, 13, 1],
+  for (const [x, y, s, p] of [[200, 176, 14, 1], [200, 210, 8, 0], [200, 60, 18, 1], [140, 40, 12, 0], [260, 40, 12, 0], [130, 105, 13, 1], [270, 105, 13, 1],
     [30, 196, 16, 1], [370, 196, 16, 1], [42, 262, 13, 0], [358, 262, 13, 0], [100, 284, 10, 0], [300, 284, 10, 0], [-20, 120, 18, 0], [420, 120, 18, 1], [-25, 250, 16, 1], [425, 250, 16, 0]]) {
     if (s < 12) drawBush(g, x, y, s); else drawTree(g, x, y, s, p);
   }
@@ -791,7 +791,7 @@ function render() {
     const s = cellS(i, G.ring.off);
     cell.forEach((f, l) => {
       if (!f) return;
-      let [x, y] = ringAt(s, LANES[l]);
+      let [x, y] = ringAt(s, RLANES[l]);
       if (f.ent < 1) { const e = ease(f.ent); x = lerp(f.fx, x, e); y = lerp(f.fy, y, e) - Math.sin(f.ent * Math.PI) * 10; }
       vis.push([y + Math.sin(G.time * 7 + f.hop) * .8, x, f.c]);
     });
