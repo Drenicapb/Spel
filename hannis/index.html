@@ -27,6 +27,11 @@ button{font-family:inherit;border:0;cursor:pointer;color:inherit}
   box-shadow:inset 0 -4px 0 #1b4fb0,0 3px 0 #fff,0 5px 10px #0003;border:3px solid #fff;display:grid;place-items:center}
 .rbtn:active{transform:translateY(2px)}
 .rbtn svg{width:24px;height:24px}
+.rcol{display:flex;flex-direction:column;gap:10px;align-items:center}
+.rbtn.ff{position:relative;background:radial-gradient(circle at 35% 30%,#ffd76a,#ff9a1f 70%);box-shadow:inset 0 -4px 0 #d9700a,0 3px 0 #fff,0 5px 10px #0003}
+.rbtn.ff.on{background:radial-gradient(circle at 35% 30%,#9df58a,#2fbf4a 70%);box-shadow:inset 0 -4px 0 #1f8a35,0 3px 0 #fff,0 5px 10px #0003;animation:ffp .5s ease-in-out infinite alternate}
+@keyframes ffp{to{transform:scale(1.08)}}
+.rbtn.ff span{position:absolute;bottom:-9px;right:-9px;background:#fff;color:#2d2552;font-weight:700;font-size:12px;border-radius:9px;padding:1px 5px;box-shadow:0 2px 4px #0003}
 #lvl{text-align:center;line-height:1;margin-top:4px}
 #lvl .hard{display:block;font-size:15px;font-weight:700;color:#ff3b3b;-webkit-text-stroke:3px #fff;paint-order:stroke fill;letter-spacing:1px;visibility:hidden}
 #lvl .hard.on{visibility:visible}
@@ -87,7 +92,8 @@ button{font-family:inherit;border:0;cursor:pointer;color:inherit}
 <div id="hud">
   <button class="rbtn" id="bRestart" aria-label="Börja om"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19 4v4.5h-4.5"/></svg></button>
   <div id="lvl"><span class="hard" id="hard">SVÅR</span><span class="n" id="lvlN">NIVÅ 1</span></div>
-  <button class="rbtn" id="bPause" aria-label="Paus"><svg viewBox="0 0 24 24" fill="#fff"><rect x="6" y="5" width="4.2" height="14" rx="1.6"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.6"/></svg></button>
+  <div class="rcol"><button class="rbtn" id="bPause" aria-label="Paus"><svg viewBox="0 0 24 24" fill="#fff"><rect x="6" y="5" width="4.2" height="14" rx="1.6"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.6"/></svg></button>
+    <button class="rbtn ff" id="bFF" aria-label="Snabbspola"><svg viewBox="0 0 24 24" fill="#fff"><path d="M3 6.2v11.6c0 .8.9 1.3 1.6.8l7.4-5.8c.5-.4.5-1.2 0-1.6L4.6 5.4C3.9 4.9 3 5.4 3 6.2z"/><path d="M12 6.2v11.6c0 .8.9 1.3 1.6.8l7.4-5.8c.5-.4.5-1.2 0-1.6l-7.4-5.8c-.7-.5-1.6 0-1.6.8z"/></svg><span id="ffN"></span></button></div>
 </div>
 <div id="left"></div>
 
@@ -114,8 +120,10 @@ button{font-family:inherit;border:0;cursor:pointer;color:inherit}
   <h2>Så spelar du</h2>
   <p>🚌 Tryck på en bil – den kör åt pilens håll. Står något i vägen studsar den tillbaka.</p>
   <p>🅿️ Bilar som kommer ut parkerar på stationen.</p>
-  <p>🙂 Hannisarna i kön kliver på bilen med <b>samma färg</b>. Full bil åker iväg!</p>
+  <p>🙂 Hannisarna kliver på bilen med <b>samma färg</b>. Full bil åker iväg!</p>
   <p>⚠️ Blir alla platser fulla och ingen kan kliva på har du förlorat.</p>
+  <p>🔄 Hannisarna snurrar runt i rondellen tills en bil i deras färg står vid hållplatsen. Två vägar fyller på när det blir plats.</p>
+  <p>⏩ Snabbspola med den orange knappen uppe till höger.</p>
   <p>❓ Svarta bilar visar sin färg när vägen framför dem är fri. 🏠 Garagen släpper ut fler bilar.</p>
   <button class="btn" data-close="how">Okej!</button>
 </div></div>

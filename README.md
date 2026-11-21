@@ -50,7 +50,7 @@ Mappen `eltonsplanet/` byggs separat (inte från `Privat`) – låt den vara kva
 
 Färgpussel med bilar: kör ut bilarna ur den fullproppade parkeringen och fyll dem med Hannisar i samma färg: **https://drenicapb.github.io/Spel/hannis/**
 
-Tryck på en bil så kör den åt pilens håll – står något i vägen studsar den tillbaka. Bilar som kommer ut parkerar på stationen och Hannisarna i kön kliver på bilen med sin färg. Blir alla platser fulla och ingen kan kliva på är det slut. Svarta ❓-bilar visar sin färg när vägen framför dem är fri, garagen släpper ut fler bilar och var femte nivå är svår. Hjälpmedel: *Ny plats*, *Blanda* och *VIP* (köps med mynt man får för varje klarad nivå). Alla nivåer skapas så att de går att lösa.
+Tryck på en bil så kör den åt pilens håll – står något i vägen studsar den tillbaka. Bilar som kommer ut parkerar på stationen. Hannisarna snurrar runt i rondellen, som matas från två vägar, och kliver på bilen med sin färg när den står vid hållplatsen. ⏩ snabbspolar (1×, 2×, 3×). Blir alla platser fulla och ingen kan kliva på är det slut. Svarta ❓-bilar visar sin färg när vägen framför dem är fri, garagen släpper ut fler bilar och var femte nivå är svår. Hjälpmedel: *Ny plats*, *Blanda* och *VIP* (köps med mynt man får för varje klarad nivå). Alla nivåer skapas så att de går att lösa.
 
 På iPhone/iPad: öppna länken i Safari → Dela → *Lägg till på hemskärmen* så startar det i helskärm och fungerar offline. Nivå och mynt sparas i webbläsaren.
 

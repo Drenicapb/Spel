@@ -71,34 +71,64 @@ const SFX = {
 };
 function buzz(ms) { try { navigator.vibrate && navigator.vibrate(ms); } catch (e) { } }
 
-// ---------- Vägen (kön) ----------
-const ROAD_PTS = [[330, -420], [330, -120], [330, 25], [298, 55], [100, 55], [56, 86], [60, 124], [100, 150], [300, 150], [344, 178], [340, 222], [300, 245], [232, 243], [204, 264], [200, 300]];
-const PATH = (() => {
-  const pts = ROAD_PTS, out = [];
-  for (let i = 0; i < pts.length - 1; i++) {
-    const p0 = pts[Math.max(0, i - 1)], p1 = pts[i], p2 = pts[i + 1], p3 = pts[Math.min(pts.length - 1, i + 2)];
+// ---------- Vägarna och rondellen ----------
+// Två vägar matar in Hannisar i rondellen. I rondellen snurrar de tills en bil i rätt färg står vid hållplatsen.
+const RING = { cx: 200, cy: 206, rx: 100, ry: 56 };
+const RING_V = 80;                     // px/s
+const LANES = [-12.5, 0, 12.5];
+const ENTRY_DEG = [212, 328];          // vänster och höger infart (medurs från höger, y nedåt)
+const ringPt = deg => [RING.cx + RING.rx * Math.cos(deg * Math.PI / 180), RING.cy + RING.ry * Math.sin(deg * Math.PI / 180)];
+const LEFT_PTS = [[46, -420], [46, -120], [46, 20], [60, 80], [92, 128], ringPt(ENTRY_DEG[0])];
+const RIGHT_PTS = LEFT_PTS.map(([x, y], i) => i === LEFT_PTS.length - 1 ? ringPt(ENTRY_DEG[1]) : [400 - x, y]);
+
+function makePath(pts, closed) {
+  const out = [];
+  const n = pts.length, segs = closed ? n : n - 1;
+  const P = i => closed ? pts[(i + n) % n] : pts[clamp(i, 0, n - 1)];
+  for (let i = 0; i < segs; i++) {
+    const p0 = P(i - 1), p1 = P(i), p2 = P(i + 1), p3 = P(i + 2);
     for (let k = 0; k < 40; k++) {
       const t = k / 40, t2 = t * t, t3 = t2 * t;
       out.push([0, 1].map(j => .5 * ((2 * p1[j]) + (-p0[j] + p2[j]) * t + (2 * p0[j] - 5 * p1[j] + 4 * p2[j] - p3[j]) * t2 + (-p0[j] + 3 * p1[j] - 3 * p2[j] + p3[j]) * t3)));
     }
   }
-  out.push(pts[pts.length - 1]);
-  // jämna steg om 1 px
+  out.push(closed ? pts[0] : pts[n - 1]);
+  return resample(out);
+}
+function resample(out) {
   const X = [], Y = [], TX = [], TY = [];
   let acc = 0, next = 0;
   for (let i = 1; i < out.length; i++) {
     const [ax, ay] = out[i - 1], [bx, by] = out[i], l = Math.hypot(bx - ax, by - ay);
+    if (!l) continue;
     while (next <= acc + l) {
       const f = (next - acc) / l; X.push(ax + (bx - ax) * f); Y.push(ay + (by - ay) * f); TX.push((bx - ax) / l); TY.push((by - ay) / l); next++;
     }
     acc += l;
   }
-  return { X, Y, TX, TY, len: X.length - 1, raw: out };
-})();
-function pathAt(s, lat) {
-  const i = clamp(Math.round(s), 0, PATH.len);
-  return [PATH.X[i] - PATH.TY[i] * lat, PATH.Y[i] + PATH.TX[i] * lat];
+  return { X, Y, TX, TY, len: X.length - 1, total: acc, raw: out };
 }
+const ROADS = [makePath(LEFT_PTS), makePath(RIGHT_PTS)];
+const RINGP = (() => {
+  const out = [];
+  for (let i = 0; i <= 720; i++) out.push(ringPt(i / 2));
+  return resample(out);
+})();
+const RING_L = RINGP.total;
+const CELLS = Math.floor(RING_L / ROW);
+const CELL_SP = RING_L / CELLS;
+const ringArcOf = deg => { const [x, y] = ringPt(deg); let bi = 0, bd = 1e9; for (let i = 0; i <= RINGP.len; i++) { const d = (RINGP.X[i] - x) ** 2 + (RINGP.Y[i] - y) ** 2; if (d < bd) { bd = d; bi = i; } } return bi; };
+const ENTRY_S = ENTRY_DEG.map(ringArcOf);
+const PICK_S = ringArcOf(90);
+function pathAt(P, s, lat) {
+  const i = clamp(Math.round(s), 0, P.len);
+  return [P.X[i] - P.TY[i] * lat, P.Y[i] + P.TX[i] * lat];
+}
+function ringAt(s, lat) {
+  s = ((s % RING_L) + RING_L) % RING_L;
+  return pathAt(RINGP, Math.min(s, RINGP.len), lat);
+}
+const crossed = (s0, s1, t) => { const d = ((t - s0) % RING_L + RING_L) % RING_L; return d > 0 && d <= s1 - s0; };
 
 // ---------- Geometri (roterade rektanglar) ----------
 function obbOf(v, dx = 0, dy = 0) { return { x: v.x + dx, y: v.y + dy, a: v.a, hl: v.L / 2, hw: v.Wd / 2 }; }
@@ -203,9 +233,9 @@ function genLevel(level) {
     }
   });
   chunks.sort((a, b) => a.k - b.k);
-  const queue = [];
-  for (const ch of chunks) for (let i = 0; i < ch.n; i++) queue.push(ch.c);
-  return { hard, vehicles, garages, queue };
+  const queue = [], roads = [[], []];
+  chunks.forEach((ch, k) => { const rd = roads[(k + (r() < .25 ? 1 : 0)) % 2]; for (let i = 0; i < ch.n; i++) { queue.push(ch.c); rd.push(ch.c); } });
+  return { hard, vehicles, garages, queue, roads };
 }
 
 // ---------- Spelstatus ----------
@@ -223,12 +253,16 @@ function startLevel(n) {
     level: n, hard: L.hard, time: 0, boardT: 0, stuckT: 0, over: false, won: false, paused: false, vipSel: false,
     vehicles: L.vehicles.map(v => makeVeh(v.type, v.col, v.x, v.y, v.a, v.hidden)),
     garages: L.garages.map(g => Object.assign({}, g, { list: g.list.map(x => Object.assign({}, x)) })),
-    queue: L.queue.map((c, i) => ({ c, ds: PATH.len - 6 - Math.floor(i / 3) * ROW - 400, dl: (i % 3 - 1) * ROW, hop: Math.random() * 6 })),
+    roads: L.roads.map((q, ri) => q.map((c, i) => ({ c, ds: roadTarget(ri, i), dl: LANES[i % 3], hop: Math.random() * 6 }))),
+    ring: { off: 0, cells: Array.from({ length: CELLS }, () => [null, null, null]) },
     total: L.queue.length,
     slots: Array.from({ length: SLOT_N }, (_, i) => ({ i, x: slotX(i), y: ST.slotY, vip: i === 0, locked: i >= 6, veh: null })),
     flyers: [], parts: []
   };
   for (const g of G.garages) spawnFromGarage(g, true);
+  // fyll rondellen innan start
+  for (let t = 0; t < RING_L / RING_V * 1.6; t += .05) { stepRing(.05, true); }
+  for (const f of ringFigs()) f.ent = 1;
   updateReveal();
   $('lvlN').textContent = 'NIVÅ ' + n;
   $('hard').classList.toggle('on', G.hard);
@@ -362,15 +396,7 @@ function updateBar() {
 function update(dt) {
   if (!G || G.paused) return;
   G.time += dt;
-  // köns rörelser
-  const q = G.queue;
-  for (let i = 0; i < q.length; i++) {
-    const p = q[i];
-    const ts = PATH.len - 6 - Math.floor(i / 3) * ROW, tl = (i % 3 - 1) * ROW;
-    if (i > 400) { p.ds = ts; p.dl = tl; continue; }
-    p.ds += (ts - p.ds) * Math.min(1, dt * 9);
-    p.dl += (tl - p.dl) * Math.min(1, dt * 7);
-  }
+  stepRing(dt, false);
   // fordon
   for (const v of G.vehicles) {
     v.wob = Math.max(0, v.wob - dt * 3); v.pulse = Math.max(0, v.pulse - dt * 2);
@@ -416,19 +442,6 @@ function update(dt) {
     }
   }
   if (spawned) updateReveal();
-  // ombordstigning
-  G.boardT -= dt;
-  if (q.length && G.boardT <= 0) {
-    const c = q[0].c;
-    const v = G.slots.map(s => s.veh).find(u => u && u.state === 'dock' && u.col === c && u.filled + u.inc < u.cap);
-    if (v) {
-      const p = q.shift();
-      const [x, y] = pathAt(p.ds, p.dl);
-      const seat = v.filled + v.inc; v.inc++;
-      G.flyers.push({ c, x0: x, y0: y - 4, v, seat, t: 0, dur: .3 });
-      G.boardT = .065;
-    }
-  }
   for (const f of G.flyers) {
     f.t += dt;
     if (f.t >= f.dur) { f.v.inc--; f.v.filled++; f.v.pulse = .6; SFX.pop(f.v.filled % 8); f.done = true; }
@@ -439,19 +452,66 @@ function update(dt) {
   G.parts = G.parts.filter(p => p.t < p.life);
   // vinst / förlust
   if (!G.won && !G.over) {
-    if (!q.length && !G.flyers.length && !G.vehicles.length) win();
+    if (!waiting() && !G.flyers.length && !G.vehicles.length) win();
     else checkStuck(dt);
   }
-  $('left').textContent = '🙂 ' + q.length;
+  $('left').textContent = '🙂 ' + waiting();
 }
 function lerpAng(a, b, t) { let d = ((b - a + Math.PI * 3) % (Math.PI * 2)) - Math.PI; return a + d * t; }
+function roadTarget(ri, i) { return ROADS[ri].len - 4 - Math.floor(i / 3) * ROW; }
+function ringFigs() { const o = []; for (const c of G.ring.cells) for (const f of c) if (f) o.push(f); return o; }
+function waiting() { return G.roads[0].length + G.roads[1].length + ringFigs().length; }
+function cellS(i, off) { return i * CELL_SP + off; }
+function dockFor(c) { return G.slots.map(s => s.veh).find(u => u && u.state === 'dock' && u.col === c && u.filled + u.inc < u.cap); }
+function stepRing(dt, pre) {
+  const R = G.ring, d = RING_V * dt, off0 = R.off;
+  R.off = (R.off + d) % RING_L;
+  // vägarna rycker fram
+  G.roads.forEach((q, ri) => {
+    for (let i = 0; i < q.length; i++) {
+      const p = q[i], ts = roadTarget(ri, i), tl = LANES[i % 3];
+      if (pre || i > 300) { p.ds = ts; p.dl = tl; continue; }
+      p.ds += (ts - p.ds) * Math.min(1, dt * 9);
+      p.dl += (tl - p.dl) * Math.min(1, dt * 7);
+    }
+  });
+  R.cells.forEach((cell, i) => {
+    const s0 = cellS(i, off0);
+    for (const f of cell) if (f && f.ent < 1) f.ent = Math.min(1, f.ent + dt / .35);
+    // hållplatsen: kliv på bilen med samma färg
+    if (!pre && crossed(s0, s0 + d, PICK_S)) {
+      for (let l = 0; l < 3; l++) {
+        const f = cell[l]; if (!f || f.ent < 1) continue;
+        const v = dockFor(f.c);
+        if (!v) continue;
+        const [x, y] = ringAt(s0 + d, LANES[l]);
+        cell[l] = null; v.inc++;
+        G.flyers.push({ c: f.c, x0: x, y0: y - 4, v, t: 0, dur: .3 + l * .04 });
+      }
+    }
+    // infarterna: släpp in nya när det finns plats
+    ENTRY_S.forEach((es, ri) => {
+      if (!crossed(s0, s0 + d, es)) return;
+      const q = G.roads[ri], other = G.roads[1 - ri];
+      // jämn matning: den längre kön får företräde
+      let room = cell.filter(f => !f).length;
+      if (other.length > q.length) room = Math.floor(room / 2);
+      for (let l = 0; l < 3 && q.length && room > 0; l++) {
+        if (cell[l]) continue;
+        room--;
+        const p = q.shift();
+        const [fx, fy] = pathAt(ROADS[ri], p.ds, p.dl);
+        cell[l] = { c: p.c, ent: pre ? 1 : 0, fx, fy, hop: p.hop };
+      }
+    });
+  });
+}
 function checkStuck(dt) {
-  const q = G.queue;
   const busy = G.flyers.length || G.vehicles.some(v => v.anim || v.state === 'move' || v.state === 'leave' || (v.state === 'dock' && v.filled >= v.cap));
-  if (!q.length || busy) { G.stuckT = 0; return; }
-  const c = q[0].c;
-  const canBoard = G.slots.some(s => s.veh && s.veh.col === c && s.veh.filled < s.veh.cap);
-  if (canBoard || freeSlot()) { G.stuckT = 0; return; }
+  if (!waiting() || busy || freeSlot()) { G.stuckT = 0; return; }
+  const figs = ringFigs();
+  const full = figs.length >= CELLS * 3, roadsEmpty = !G.roads[0].length && !G.roads[1].length;
+  if (figs.some(f => f.ent < 1) || figs.some(f => dockFor(f.c)) || !(full || roadsEmpty)) { G.stuckT = 0; return; }
   G.stuckT += dt;
   if (G.stuckT > .9) lose();
 }
@@ -482,7 +542,7 @@ function lose() {
   bs.textContent = '+1 plats ' + (S.boost.slot > 0 ? `(${S.boost.slot} kvar)` : `(${PRICE.slot} 🪙)`);
   bv.style.display = vipFree && parked().length ? '' : 'none';
   bv.textContent = '👑 VIP-bil ' + (S.boost.vip > 0 ? `(${S.boost.vip} kvar)` : `(${PRICE.vip} 🪙)`);
-  $('loseP').textContent = `Ingen i kön kan kliva på. ${G.queue.length} Hannisar väntar fortfarande.`;
+  $('loseP').textContent = `Ingen i rondellen kan kliva på. ${waiting()} Hannisar väntar fortfarande.`;
   open('lose');
 }
 
@@ -556,14 +616,22 @@ function buildStatic() {
     g.beginPath(); g.ellipse(x, y, 10 + r() * 26, 6 + r() * 12, 0, 0, 7); g.fill();
   }
   // väg
-  const road = (w, col) => { g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath(); PATH.raw.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y)); g.stroke(); };
+  const road = (w, col) => {
+    g.strokeStyle = col; g.lineWidth = w; g.lineCap = 'round'; g.lineJoin = 'round'; g.beginPath();
+    for (const P of [ROADS[0], ROADS[1], RINGP]) P.raw.forEach(([x, y], i) => i ? g.lineTo(x, y) : g.moveTo(x, y));
+    g.moveTo(RING.cx, RING.cy + RING.ry); g.lineTo(RING.cx, ST.y0 + 4);
+    g.stroke();
+  };
   g.save(); g.translate(2, 5); road(60, 'rgba(60,90,20,.25)'); g.restore();
   road(60, '#f6f4fb'); road(51, '#8f89a6');
   g.save(); g.globalAlpha = .18; g.translate(0, -1.5); road(45, '#ffffff'); g.restore();
   road(47, '#8f89a6');
   // träd & buskar
-  for (const [x, y, s, p] of [[22, 22, 17, 1], [378, 92, 15, 1], [150, 103, 13, 0], [250, 103, 13, 0], [200, 101, 9, 1], [28, 205, 17, 1], [125, 212, 14, 0],
-    [72, 266, 16, 1], [372, 268, 16, 1], [280, 198, 11, 0], [-20, 120, 18, 0], [420, 200, 18, 1], [395, 20, 14, 0], [150, 270, 10, 0], [-30, 270, 16, 1], [430, 40, 16, 1]]) {
+  // rondellens mitt: liten blomsterrabatt
+  g.fillStyle = '#9fcb48'; g.beginPath(); g.ellipse(RING.cx, RING.cy, RING.rx - 26, RING.ry - 26, 0, 0, 7); g.fill();
+  g.strokeStyle = '#fff'; g.lineWidth = 3; g.stroke();
+  for (const [x, y, s, p] of [[200, 206, 15, 1], [160, 210, 9, 0], [240, 210, 9, 0], [200, 60, 18, 1], [140, 40, 12, 0], [260, 40, 12, 0], [130, 105, 13, 1], [270, 105, 13, 1],
+    [30, 196, 16, 1], [370, 196, 16, 1], [42, 262, 13, 0], [358, 262, 13, 0], [100, 284, 10, 0], [300, 284, 10, 0], [-20, 120, 18, 0], [420, 120, 18, 1], [-25, 250, 16, 1], [425, 250, 16, 0]]) {
     if (s < 12) drawBush(g, x, y, s); else drawTree(g, x, y, s, p);
   }
   // station
@@ -709,14 +777,25 @@ function render() {
   // kön (bakifrån och fram)
   const vis = [];
   const top = -OY / SC - 20;
-  const n = Math.min(G.queue.length, 420);
-  for (let i = 0; i < n; i++) {
-    const p = G.queue[i];
-    if (p.ds < 0) continue;
-    const [x, y] = pathAt(p.ds, p.dl);
-    if (y < top) continue;
-    vis.push([y + Math.sin(G.time * 5 + p.hop) * .6, x, p.c]);
-  }
+  G.roads.forEach((q, ri) => {
+    const n = Math.min(q.length, 330);
+    for (let i = 0; i < n; i++) {
+      const p = q[i];
+      if (p.ds < 0) continue;
+      const [x, y] = pathAt(ROADS[ri], p.ds, p.dl);
+      if (y < top) continue;
+      vis.push([y + Math.sin(G.time * 5 + p.hop) * .6, x, p.c]);
+    }
+  });
+  G.ring.cells.forEach((cell, i) => {
+    const s = cellS(i, G.ring.off);
+    cell.forEach((f, l) => {
+      if (!f) return;
+      let [x, y] = ringAt(s, LANES[l]);
+      if (f.ent < 1) { const e = ease(f.ent); x = lerp(f.fx, x, e); y = lerp(f.fy, y, e) - Math.sin(f.ent * Math.PI) * 10; }
+      vis.push([y + Math.sin(G.time * 7 + f.hop) * .8, x, f.c]);
+    });
+  });
   vis.sort((a, b) => a[0] - b[0]);
   for (const [y, x, col] of vis) drawPerson(c, col, x, y);
   drawSlots(c);
@@ -823,11 +902,18 @@ function drawMenuArt() {
   uid = 1;
 }
 
+// ---------- Snabbspola ----------
+let FF = 1;
+function setFF(n) { FF = n; $('ffN').textContent = n + '×'; $('bFF').classList.toggle('on', n > 1); }
+$('bFF').onclick = () => { setFF(FF >= 3 ? 1 : FF + 1); SFX.tap(); };
+setFF(1);
+
 // ---------- Huvudloop ----------
 let last = performance.now();
 function frame(now) {
   const dt = Math.min(.05, (now - last) / 1000); last = now;
-  update(dt); render();
+  for (let k = 0; k < FF; k++) update(dt);
+  render();
   requestAnimationFrame(frame);
 }
 addEventListener('resize', () => { resize(); if ($('menu').classList.contains('on')) drawMenuArt(); });
