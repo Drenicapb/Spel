@@ -45,3 +45,13 @@ Gudasimulator – forma världen, sätt ut människor och djur och se riken väx
 På iPhone/iPad: öppna länken i Safari → Dela → *Lägg till på hemskärmen* (Android: Chrome → ⋮ → *Lägg till på startskärmen*) så startar det i helskärm med egen ikon och fungerar offline. Spelet sparas automatiskt i webbläsaren på enheten.
 
 Mappen `eltonsplanet/` byggs separat (inte från `Privat`) – låt den vara kvar när Bucinca-filerna kopieras hit. Ny version: ändra `eltonsplanet/index.html` och höj `CACHE` i `eltonsplanet/sw.js`.
+
+## Hannis
+
+Färgpussel med bilar: kör ut bilarna ur den fullproppade parkeringen och fyll dem med Hannisar i samma färg: **https://drenicapb.github.io/Spel/hannis/**
+
+Tryck på en bil så kör den åt pilens håll – står något i vägen studsar den tillbaka. Bilar som kommer ut parkerar på stationen och Hannisarna i kön kliver på bilen med sin färg. Blir alla platser fulla och ingen kan kliva på är det slut. Svarta ❓-bilar visar sin färg när vägen framför dem är fri, garagen släpper ut fler bilar och var femte nivå är svår. Hjälpmedel: *Ny plats*, *Blanda* och *VIP* (köps med mynt man får för varje klarad nivå). Alla nivåer skapas så att de går att lösa.
+
+På iPhone/iPad: öppna länken i Safari → Dela → *Lägg till på hemskärmen* så startar det i helskärm och fungerar offline. Nivå och mynt sparas i webbläsaren.
+
+Mappen `hannis/` byggs separat (inte från `Privat`) – låt den vara kvar när Bucinca-filerna kopieras hit. Ny version: ändra `hannis/game.js` och höj `CACHE` i `hannis/sw.js`.

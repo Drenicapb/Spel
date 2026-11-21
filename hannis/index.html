@@ -1,0 +1,150 @@
+<!doctype html>
+<html lang="sv">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,maximum-scale=1,user-scalable=no,viewport-fit=cover">
+<title>Hannis</title>
+<meta name="description" content="Hannis – kör ut bilarna ur parkeringen och fyll dem med passagerare i rätt färg.">
+<meta name="theme-color" content="#a7cf4a">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="Hannis">
+<link rel="manifest" href="manifest.webmanifest">
+<link rel="icon" href="img/favicon.png">
+<link rel="apple-touch-icon" href="img/apple-touch-icon.png">
+<style>
+@font-face{font-family:'Fredoka';src:url('fredoka.woff2') format('woff2');font-weight:300 700;font-display:block}
+:root{--ink:#2d2552;--safe-t:max(10px,env(safe-area-inset-top));--safe-b:max(10px,env(safe-area-inset-bottom))}
+*{box-sizing:border-box;-webkit-tap-highlight-color:transparent;-webkit-touch-callout:none;-webkit-user-select:none;user-select:none}
+html,body{margin:0;height:100%;overflow:hidden;overscroll-behavior:none;background:#ece7f4;font-family:'Fredoka',system-ui,sans-serif;color:var(--ink);touch-action:none}
+button{font-family:inherit;border:0;cursor:pointer;color:inherit}
+#cv{position:fixed;inset:0;width:100%;height:100%;display:block;touch-action:none}
+
+/* Topp */
+#hud{position:fixed;left:0;right:0;top:var(--safe-t);display:flex;justify-content:space-between;align-items:flex-start;padding:0 12px;pointer-events:none;z-index:3}
+.rbtn{pointer-events:auto;width:46px;height:46px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#6fb6ff,#2a6fe0 70%);
+  box-shadow:inset 0 -4px 0 #1b4fb0,0 3px 0 #fff,0 5px 10px #0003;border:3px solid #fff;display:grid;place-items:center}
+.rbtn:active{transform:translateY(2px)}
+.rbtn svg{width:24px;height:24px}
+#lvl{text-align:center;line-height:1;margin-top:4px}
+#lvl .hard{display:block;font-size:15px;font-weight:700;color:#ff3b3b;-webkit-text-stroke:3px #fff;paint-order:stroke fill;letter-spacing:1px;visibility:hidden}
+#lvl .hard.on{visibility:visible}
+#lvl .n{font-size:30px;font-weight:700;color:#fff;-webkit-text-stroke:5px var(--ink);paint-order:stroke fill;text-shadow:0 3px 0 var(--ink)}
+#left{position:fixed;left:12px;top:calc(var(--safe-t) + 54px);z-index:3;font-weight:700;font-size:14px;color:#fff;background:#0004;border-radius:999px;padding:3px 10px;pointer-events:none}
+
+/* Boosters */
+#bar{position:fixed;left:0;right:0;bottom:calc(var(--safe-b) + 14px);display:flex;justify-content:center;gap:clamp(10px,4vw,26px);z-index:3;pointer-events:none}
+.bst{pointer-events:auto;position:relative;width:70px;height:70px;border-radius:50%;background:radial-gradient(circle at 35% 30%,#7cc0ff,#2a6fe0 70%);
+  border:4px solid #fff;box-shadow:inset 0 -5px 0 #1b4fb0,0 4px 0 #cfc6e6,0 8px 14px #0003;display:grid;place-items:center}
+.bst:active{transform:translateY(3px)}
+.bst svg{width:44px;height:44px;filter:drop-shadow(0 2px 0 #0003)}
+.bst .cnt{position:absolute;top:-6px;right:-6px;min-width:26px;height:26px;border-radius:13px;background:#ff3d4f;color:#fff;border:3px solid #fff;
+  font-weight:700;font-size:15px;display:grid;place-items:center;padding:0 5px;box-shadow:0 2px 4px #0003}
+.bst .cnt.buy{background:#ff3d4f;font-size:20px}
+.bst .lab{position:absolute;bottom:-17px;left:50%;transform:translateX(-50%);font-size:12px;font-weight:700;color:#6b6195;white-space:nowrap}
+.bst.dis{filter:grayscale(.9);opacity:.6}
+.bst.coin{background:radial-gradient(circle at 35% 30%,#ffe27a,#ffad1f 70%);box-shadow:inset 0 -5px 0 #e08a00,0 4px 0 #cfc6e6,0 8px 14px #0003}
+.bst.coin b{font-size:17px;font-weight:700;color:#7a3e00;margin-top:30px}
+.bst.coin .ic{position:absolute;top:9px;font-size:26px}
+
+/* Toast */
+#toast{position:fixed;left:50%;top:44%;transform:translate(-50%,-50%) scale(.8);background:#2d2552ee;color:#fff;font-weight:600;font-size:18px;
+  padding:10px 18px;border-radius:16px;opacity:0;transition:opacity .2s,transform .2s;pointer-events:none;z-index:9;text-align:center;max-width:86vw}
+#toast.on{opacity:1;transform:translate(-50%,-50%) scale(1)}
+
+/* Overlays */
+.ov{position:fixed;inset:0;z-index:10;display:none;align-items:center;justify-content:center;flex-direction:column;gap:14px;padding:20px;background:#2d255288;backdrop-filter:blur(3px);-webkit-backdrop-filter:blur(3px)}
+.ov.on{display:flex;animation:pop .35s cubic-bezier(.2,1.5,.4,1)}
+@keyframes pop{from{opacity:0;transform:scale(.9)}}
+.card{background:#fff;border-radius:28px;padding:22px 22px 24px;width:min(88vw,360px);text-align:center;box-shadow:0 8px 0 #cfc6e6,0 20px 40px #0004;display:flex;flex-direction:column;gap:12px;align-items:stretch}
+.card h2{margin:0 0 4px;font-size:30px;line-height:1.1}
+.card p{margin:0;color:#6b6195;font-size:17px}
+.btn{--c:#34c759;--d:#1f9a3e;background:var(--c);color:#fff;font-size:21px;font-weight:700;padding:13px 18px;border-radius:20px;box-shadow:0 6px 0 var(--d),0 10px 16px #0002;
+  display:flex;align-items:center;justify-content:center;gap:8px}
+.btn:active{transform:translateY(4px);box-shadow:0 2px 0 var(--d)}
+.btn.blue{--c:#3b8bff;--d:#2263c9}.btn.orange{--c:#ff9a1f;--d:#d9700a}.btn.grey{--c:#ebe6f6;--d:#c9c1e2;color:var(--ink)}.btn.pink{--c:#ff4fa8;--d:#d12f84}
+.btn:disabled{filter:grayscale(1);opacity:.5}
+
+#menu{background:linear-gradient(180deg,#9fd0ff 0%,#c8ecff 50%,#b5dd5c 50.2%,#9ccb45 100%);backdrop-filter:none}
+.logo{display:flex;gap:2px;margin-bottom:4px}
+.logo span{display:inline-block;font-size:clamp(64px,20vw,110px);font-weight:700;line-height:1;color:var(--c);-webkit-text-stroke:7px #fff;paint-order:stroke fill;
+  text-shadow:0 7px 0 #2d2552,0 12px 18px #0003;animation:bob 1.7s ease-in-out infinite}
+@keyframes bob{50%{transform:translateY(-10px) rotate(-3deg)}}
+.tag{font-size:19px;font-weight:600;color:#2d2552;background:#fffc;padding:6px 16px;border-radius:999px;margin-bottom:8px}
+#menuArt{width:min(94vw,440px);height:170px}
+.mrow{display:flex;gap:10px;width:min(88vw,340px)}
+.mrow .btn{flex:1}
+.coins{font-weight:700;font-size:18px;background:#fffc;border-radius:999px;padding:5px 14px;color:#7a3e00}
+.home{position:fixed;left:12px;top:var(--safe-t);font-weight:700;color:#2d2552;background:#fffc;border-radius:999px;padding:6px 12px;font-size:15px;text-decoration:none}
+.stars{font-size:44px;letter-spacing:4px}
+.big{font-size:22px;font-weight:700;color:#e08a00}
+</style>
+</head>
+<body>
+<canvas id="cv"></canvas>
+
+<div id="hud">
+  <button class="rbtn" id="bRestart" aria-label="Börja om"><svg viewBox="0 0 24 24" fill="none" stroke="#fff" stroke-width="3.2" stroke-linecap="round" stroke-linejoin="round"><path d="M19 12a7 7 0 1 1-2.1-5"/><path d="M19 4v4.5h-4.5"/></svg></button>
+  <div id="lvl"><span class="hard" id="hard">SVÅR</span><span class="n" id="lvlN">NIVÅ 1</span></div>
+  <button class="rbtn" id="bPause" aria-label="Paus"><svg viewBox="0 0 24 24" fill="#fff"><rect x="6" y="5" width="4.2" height="14" rx="1.6"/><rect x="13.8" y="5" width="4.2" height="14" rx="1.6"/></svg></button>
+</div>
+<div id="left"></div>
+
+<div id="bar">
+  <button class="bst" id="bSlot"><svg viewBox="0 0 48 48"><rect x="6" y="8" width="36" height="32" rx="8" fill="#8e86b8"/><rect x="10" y="12" width="28" height="24" rx="5" fill="#b8b1da"/><path d="M24 15v18M15 24h18" stroke="#3fd16a" stroke-width="6" stroke-linecap="round"/><path d="M24 15v18M15 24h18" stroke="#9ff7b5" stroke-width="2" stroke-linecap="round"/></svg><span class="cnt"></span><span class="lab">Ny plats</span></button>
+  <button class="bst" id="bShuffle"><svg viewBox="0 0 48 48" fill="none" stroke-linecap="round" stroke-linejoin="round"><path d="M10 20a14 14 0 0 1 25-7" stroke="#ff9a1f" stroke-width="6"/><path d="M38 28a14 14 0 0 1-25 7" stroke="#ffd21f" stroke-width="6"/><path d="M36 6v8h-8" stroke="#ff9a1f" stroke-width="6"/><path d="M12 42v-8h8" stroke="#ffd21f" stroke-width="6"/></svg><span class="cnt"></span><span class="lab">Blanda</span></button>
+  <button class="bst" id="bVip"><svg viewBox="0 0 48 48"><rect x="7" y="14" width="34" height="22" rx="8" fill="#ff4fa8"/><rect x="12" y="17" width="24" height="16" rx="5" fill="#bfefff"/><rect x="16" y="20" width="16" height="10" rx="3" fill="#ff7cc0"/><path d="M14 9l4 5 6-7 6 7 4-5-1 7H15z" fill="#ffd21f" stroke="#c98a00" stroke-width="1.5"/><rect x="11" y="37" width="26" height="8" rx="4" fill="#ffd21f"/><text x="24" y="43.6" font-size="7" font-weight="700" text-anchor="middle" fill="#7a3e00" font-family="Fredoka,sans-serif">VIP</text></svg><span class="cnt"></span><span class="lab">VIP</span></button>
+  <button class="bst coin" id="bCoins"><span class="ic">🪙</span><b id="coinN">0</b><span class="lab">Mynt</span></button>
+</div>
+
+<div id="toast"></div>
+
+<div class="ov on" id="menu">
+  <a class="home" href="../">← Alla spel</a>
+  <div class="logo" id="logo"></div>
+  <div class="tag">Fyll bilarna med rätt färg!</div>
+  <canvas id="menuArt"></canvas>
+  <div class="coins" id="mCoins">🪙 0</div>
+  <div class="mrow"><button class="btn" id="bPlay">▶ Spela</button></div>
+  <div class="mrow"><button class="btn grey" id="bHow">❓ Så spelar du</button><button class="btn grey" id="bSnd" style="flex:0 0 64px">🔊</button></div>
+</div>
+
+<div class="ov" id="how"><div class="card">
+  <h2>Så spelar du</h2>
+  <p>🚌 Tryck på en bil – den kör åt pilens håll. Står något i vägen studsar den tillbaka.</p>
+  <p>🅿️ Bilar som kommer ut parkerar på stationen.</p>
+  <p>🙂 Hannisarna i kön kliver på bilen med <b>samma färg</b>. Full bil åker iväg!</p>
+  <p>⚠️ Blir alla platser fulla och ingen kan kliva på har du förlorat.</p>
+  <p>❓ Svarta bilar visar sin färg när vägen framför dem är fri. 🏠 Garagen släpper ut fler bilar.</p>
+  <button class="btn" data-close="how">Okej!</button>
+</div></div>
+
+<div class="ov" id="pause"><div class="card">
+  <h2>Paus</h2>
+  <button class="btn" id="bResume">▶ Fortsätt</button>
+  <button class="btn blue" id="bRetry2">↻ Börja om nivån</button>
+  <button class="btn grey" id="bMenu">🏠 Meny</button>
+</div></div>
+
+<div class="ov" id="win"><div class="card">
+  <div class="stars">⭐⭐⭐</div>
+  <h2 id="winT">Nivå klar!</h2>
+  <div class="big" id="winC">+10 🪙</div>
+  <button class="btn" id="bNext">Nästa nivå ▶</button>
+</div></div>
+
+<div class="ov" id="lose"><div class="card">
+  <h2>Fullt på stationen!</h2>
+  <p id="loseP">Ingen i kön kan kliva på.</p>
+  <button class="btn orange" id="bLoseSlot">+1 plats</button>
+  <button class="btn pink" id="bLoseVip">VIP-bil</button>
+  <button class="btn blue" id="bRetry">↻ Försök igen</button>
+</div></div>
+
+<script src="game.js"></script>
+<script>
+if('serviceWorker' in navigator)addEventListener('load',()=>navigator.serviceWorker.register('sw.js').catch(()=>{}));
+</script>
+</body>
+</html>
