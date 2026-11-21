@@ -160,11 +160,11 @@ function sweep(o, obstacles, step = 3) {
 function genLevel(level) {
   const r = rng(level * 7919 + 1013);
   const hard = level % 5 === 0;
-  const nCol = Math.min(3 + Math.floor((level + 1) / 2), PAL.length);
-  const nVeh = Math.min(Math.floor(8 + level * 1.1 + (hard ? 4 : 0)), 28);
-  const typesAllowed = level < 3 ? ['car', 'van'] : ['car', 'van', 'van', 'bus'];
-  const hiddenP = level >= 4 ? Math.min(.08 + level * .012, .3) : 0;
-  const nGar = level >= 6 ? (level >= 14 ? 2 : 1) : 0;
+  const nCol = Math.min(4 + Math.floor(level / 2) + (hard ? 1 : 0), PAL.length);
+  const nVeh = Math.min(Math.floor(11 + level * 1.3 + (hard ? 5 : 0)), 32);
+  const typesAllowed = level < 2 ? ['car', 'van'] : ['car', 'van', 'van', 'bus'];
+  const hiddenP = level >= 3 ? Math.min(.15 + level * .015, .4) : 0;
+  const nGar = level >= 4 ? (level >= 10 ? 2 : 1) : 0;
   const cols = shuffle([...Array(PAL.length).keys()], r).slice(0, nCol);
   const placed = [];   // {o, kind, ref}
   const vehicles = [], garages = [];
@@ -198,7 +198,7 @@ function genLevel(level) {
   // Vanliga bilar – varje ny bil har fri väg ut förbi de tidigare, så omvänd ordning går alltid att lösa.
   for (let k = 0; k < nVeh; k++) {
     let best = null;
-    for (let tr = 0; tr < 70; tr++) {
+    for (let tr = 0; tr < 110; tr++) {
       const type = typesAllowed[Math.floor(r() * typesAllowed.length)], T = TYPES[type];
       const o = { x: lerp(LOT.x0 + 20, LOT.x1 - 20, r()), y: lerp(LOT.y0 + 20, LOT.y1 - 20, r()), a: angleFor(), hl: T.L / 2, hw: T.Wd / 2 };
       if (!insideLot(o, 4)) continue;
@@ -206,35 +206,117 @@ function genLevel(level) {
       if (!sweep(o, obstacles(), 4).free) continue;
       // Poäng: hur många tidigare bilar den här blockerar + hur tätt den står
       let score = r() * .8;
-      for (const p of placed) if (p.kind === 'veh') { const s = sweep(p.o, [o], 4); if (!s.free) score += 1; }
-      for (const p of placed) { const d = Math.hypot(p.o.x - o.x, p.o.y - o.y); if (d < 60) score += .15; }
+      for (const p of placed) if (p.kind === 'veh') { const s = sweep(p.o, [o], 4); if (!s.free) score += p.nb ? .8 : 3; }
+      for (const p of placed) { const d = Math.hypot(p.o.x - o.x, p.o.y - o.y); if (d < 60) score += .3; }
       if (!best || score > best.score) best = { o, type, score };
     }
     if (!best) continue;
-    placed.push({ o: best.o, kind: 'veh' });
+    for (const p of placed) if (p.kind === 'veh' && !sweep(p.o, [best.o], 4).free) p.nb = (p.nb || 0) + 1;
+    placed.push({ o: best.o, kind: 'veh', nb: 0 });
     vehicles.push({ type: best.type, x: best.o.x, y: best.o.y, a: best.o.a });
   }
-  // Färger – jämnt fördelade
-  const order = [...vehicles].reverse();         // lösningsordning
-  for (const g of garages) for (const it of g.list) order.push(it);
+  // Vem blockerar vem? (används för lager och för testspelaren)
+  const items = vehicles.map(v => ({ v, o: { x: v.x, y: v.y, a: v.a, hl: TYPES[v.type].L / 2, hw: TYPES[v.type].Wd / 2 } }));
+  for (const a of items) a.v.blk = items.filter(b => b !== a && !sweep(a.o, [b.o], 4).free).map(b => b.v);
+  for (const g of garages) g.blk = items.filter(b => !sweep({ x: g.sp.x, y: g.sp.y, a: g.a, hl: 34, hw: 13 }, [b.o], 4).free).map(b => b.v);
+  // Lager: vilka bilar är fria direkt, vilka blir fria när de är borta, osv.
+  const order = [];
+  let rest = vehicles.slice(), layerNo = 0;
+  while (rest.length) {
+    const left = new Set(rest);
+    let layer = rest.filter(v => !v.blk.some(u => left.has(u)));
+    if (!layer.length) layer = [rest[rest.length - 1]];
+    for (const v of shuffle(layer.slice(), r)) { v.layer = layerNo; order.push(v); }
+    rest = rest.filter(v => !layer.includes(v)); layerNo++;
+  }
+  for (const g of garages) for (const it of g.list) { it.layer = layerNo; order.push(it); }
+  // Från nivå 3 ligger varje färg i ett enda sammanhängande band, så djupet spelar roll.
+  const run = level < 2 ? 1 : level < 3 ? 2 : Math.ceil(order.length / cols.length);
   const colSeq = [];
-  while (colSeq.length < order.length) colSeq.push(...shuffle([...cols], r));
+  while (colSeq.length < order.length) for (const c of shuffle([...cols], r)) for (let k = 0; k < run; k++) colSeq.push(c);
   order.forEach((v, i) => { v.col = colSeq[i]; });
   for (const v of vehicles) v.hidden = r() < hiddenP;
-  // Kön: bilarnas passagerare i lösningsordning, lite omblandade
-  const win = Math.min(.6 + level * .07, 2.2) + (hard ? .6 : 0);
-  const chunks = [];
-  order.forEach((v, idx) => {
-    let rem = TYPES[v.type].cap;
-    while (rem > 0) {
-      const sz = Math.min(rem, 1 + Math.floor(r() * 3) + (rem >= 6 ? 1 : 0));
-      chunks.push({ k: idx + r() * win, c: v.col, n: sz }); rem -= sz;
+  // Kön: många slumpade köer provas. Vi behåller en som en smart spelare klarar med 4 platser
+  // men inte med färre – då måste man använda platserna klokt. Svårare nivåer kräver mer.
+  const target = level < 3 ? 0 : (level >= 8 || hard) ? 2 : 1;
+  const build = (bias, blob, reach) => {
+    const n = order.length;
+    const pre = order.map((v, idx) => ({ v, k: idx * bias + r() * n * (1 - bias) })).sort((x, y) => x.k - y.k).map(o => o.v);
+    const used = new Set(), qOrder = [];
+    pre.forEach((v, i) => {
+      if (used.has(v)) return;
+      used.add(v); qOrder.push(v);
+      for (let j = i + 1, extra = blob; j < Math.min(n, i + 1 + reach) && extra > 0; j++) {
+        const u = pre[j]; if (!used.has(u) && u.col === v.col) { used.add(u); qOrder.push(u); extra--; }
+      }
+    });
+    const chunks = [];
+    qOrder.forEach((v, idx) => {
+      let rem = TYPES[v.type].cap;
+      while (rem > 0) { const sz = Math.min(rem, 2 + Math.floor(r() * 4)); chunks.push({ k: idx + r() * .8, c: v.col, n: sz }); rem -= sz; }
+    });
+    chunks.sort((x, y) => x.k - y.k);
+    const q = [], rd = [[], []];
+    let side = 0, lastC = -1;
+    chunks.forEach(ch => { if (ch.c !== lastC && r() < .55) side = 1 - side; lastC = ch.c; for (let i = 0; i < ch.n; i++) { q.push(ch.c); rd[side].push(ch.c); } });
+    return { q, rd };
+  };
+  let best = null, bestScore = -1, D = 0;
+  for (let tries = 0; tries < 90 && bestScore < target; tries++) {
+    const bias = level < 3 ? .85 : .25 + r() * .65;
+    const c = build(bias, level < 3 ? 0 : Math.floor(r() * 4), 6 + Math.floor(r() * 12));
+    if (!canSolve(vehicles, garages, c.rd, 4)) continue;
+    const score = canSolve(vehicles, garages, c.rd, 2) ? 0 : canSolve(vehicles, garages, c.rd, 3) ? 1 : 2;
+    if (score > bestScore) { best = c; bestScore = score; D = 1 - bias; }
+  }
+  let queue, roads;
+  if (best) { queue = best.q; roads = best.rd; }
+  else {                                            // nödutgång: kön i exakt lagerordning
+    queue = []; roads = [[], []];
+    order.forEach((v, i) => { for (let k = 0; k < TYPES[v.type].cap; k++) { queue.push(v.col); roads[i % 2].push(v.col); } });
+  }
+  D = bestScore;
+  return { hard, vehicles, garages, queue, roads, order, D };
+}
+
+// Smart testspelare: spelar banan med full kännedom om färgerna och väljer bilar girigt.
+function canSolve(vehicles, garages, roads, slots) {
+  const q = [roads[0].slice(), roads[1].slice()], cap = CELLS * RLANES.length;
+  const gone = new Set(), gi = garages.map(() => 0);
+  const ring = {}; let inRing = 0; const dock = [];
+  const avail = () => {
+    const a = vehicles.filter(v => !gone.has(v) && v.blk.every(u => gone.has(u)));
+    garages.forEach((g, i) => { if (gi[i] < g.list.length && g.blk.every(u => gone.has(u))) a.push({ g: i, ...g.list[gi[i]] }); });
+    return a;
+  };
+  const take = v => { if (v.g !== undefined) gi[v.g]++; else gone.add(v); dock.push({ c: v.col, left: TYPES[v.type].cap }); };
+  for (let guard = 0; guard < 5000; guard++) {
+    while (inRing < cap && (q[0].length || q[1].length)) {
+      const c = (q[0].length >= q[1].length ? q[0] : q[1]).shift(); ring[c] = (ring[c] || 0) + 1; inRing++;
     }
-  });
-  chunks.sort((a, b) => a.k - b.k);
-  const queue = [], roads = [[], []];
-  chunks.forEach((ch, k) => { const rd = roads[(k + (r() < .25 ? 1 : 0)) % 2]; for (let i = 0; i < ch.n; i++) { queue.push(ch.c); rd.push(ch.c); } });
-  return { hard, vehicles, garages, queue, roads };
+    let moved = false;
+    for (let i = dock.length - 1; i >= 0; i--) {
+      const d = dock[i], n = Math.min(ring[d.c] || 0, d.left);
+      if (n) { ring[d.c] -= n; inRing -= n; d.left -= n; moved = true; }
+      if (!d.left) dock.splice(i, 1);
+    }
+    if (moved) continue;
+    if (!inRing && !q[0].length && !q[1].length) return true;
+    if (dock.length >= slots) return false;
+    const av = avail();
+    if (!av.length) return false;
+    const need = {};
+    for (const c in ring) need[c] = ring[c];
+    for (const d of dock) need[d.c] = (need[d.c] || 0) - d.left;
+    av.sort((x, y) => (need[y.col] || 0) - (need[x.col] || 0) || TYPES[x.type].cap - TYPES[y.type].cap);
+    if ((need[av[0].col] || 0) > 0) { take(av[0]); continue; }
+    // ingen passar: gräv – ta den fria bil som blockerar en bil vars färg behövs (om det finns plats kvar)
+    if (dock.length >= slots - 1) return false;
+    const wanted = vehicles.filter(v => !gone.has(v) && (need[v.col] || 0) > 0);
+    const digger = av.find(v => v.g === undefined && wanted.some(w => w.blk.includes(v)));
+    take(digger || av[av.length - 1]);
+  }
+  return false;
 }
 
 // ---------- Spelstatus ----------
@@ -255,7 +337,7 @@ function startLevel(n) {
     roads: L.roads.map((q, ri) => q.map((c, i) => ({ c, ds: roadTarget(ri, i), dl: LANES[i % 3], hop: Math.random() * 6 }))),
     ring: { off: 0, cells: Array.from({ length: CELLS }, () => [null, null]) },
     total: L.queue.length,
-    slots: Array.from({ length: SLOT_N }, (_, i) => ({ i, x: slotX(i), y: ST.slotY, vip: i === 0, locked: i >= 6, veh: null })),
+    slots: Array.from({ length: SLOT_N }, (_, i) => ({ i, x: slotX(i), y: ST.slotY, vip: i === 0, locked: i >= 5, veh: null })),
     flyers: [], parts: []
   };
   for (const g of G.garages) spawnFromGarage(g, true);
@@ -935,4 +1017,4 @@ document.addEventListener('visibilitychange', () => { if (document.hidden && G &
 })();
 
 // för tester
-window.__hannis = { get G() { return G; }, S, startLevel, genLevel, tapVehicle, sweep, obbOf, obstaclesFor, drawVehicle, drawPerson, makeVeh, rr };
+window.__hannis = { get G() { return G; }, S, startLevel, genLevel, tapVehicle, sweep, obbOf, obstaclesFor, drawVehicle, drawPerson, makeVeh, rr, canSolve };
