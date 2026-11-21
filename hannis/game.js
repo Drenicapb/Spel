@@ -185,6 +185,7 @@ function genLevel(level) {
       if (!insideLot(sp, 4) || !insideLot(gb, 2)) continue;
       if (placed.some(p => overlap(sp, p.o, 4) || overlap(gb, p.o, 4))) continue;
       if (!sweep(sp, obstacles(), 4).free) continue;
+      if (garages.some(g0 => !sweep({ x: g0.sp.x, y: g0.sp.y, a: g0.a, hl: 34, hw: 13 }, [gb, sp], 4).free)) continue;
       const list = [];
       const n = 2 + Math.floor(r() * (level >= 12 ? 3 : 2));
       for (let i = 0; i < n; i++) list.push({ type: typesAllowed[Math.floor(r() * typesAllowed.length)], col: 0 });
@@ -278,9 +279,10 @@ const parked = () => G.vehicles.filter(v => v.state === 'park');
 function obstaclesFor(v) {
   const o = [];
   for (const u of G.vehicles) if (u !== v && u.state === 'park') o.push(obbOf(u));
-  for (const g of G.garages) o.push(g);
+  for (const g of G.garages) if (!garageEmpty(g)) o.push(g);
   return o;
 }
+function garageEmpty(g) { return !g.cur && !g.list.length; }
 function updateReveal() {
   for (const v of G.vehicles) if (v.state === 'park' && v.hidden && !v.revealed && !v.anim) {
     if (sweep(obbOf(v), obstaclesFor(v)).free) { v.revealed = true; v.pulse = 1; }
@@ -314,7 +316,10 @@ function polyAt(P, s) {
 function freeSlot() { return G.slots.find(s => !s.vip && !s.locked && !s.veh); }
 function sendToSlot(v, slot, P, kind = 'exit') {
   slot.veh = v; v.slot = slot; v.state = 'move';
-  if (v.garage) { v.garage.cur = null; v.garage.timer = .45; v.garage = null; }
+  if (v.garage) {
+    const g = v.garage; g.cur = null; g.timer = .45; v.garage = null;
+    if (garageEmpty(g)) { burst(g.x, g.y, '#bbb3e6', 14); updateReveal(); }
+  }
   v.revealed = true;
   v.anim = { kind, t: 0, dur: Math.max(.45, P.len / 620), P };
 }
@@ -799,7 +804,7 @@ function render() {
   vis.sort((a, b) => a[0] - b[0]);
   for (const [y, x, col] of vis) drawPerson(c, col, x, y);
   drawSlots(c);
-  for (const g of G.garages) drawGarage(c, g);
+  for (const g of G.garages) if (!garageEmpty(g)) drawGarage(c, g);
   const vs = G.vehicles.filter(v => v.state === 'park' || v.state === 'dock').sort((a, b) => a.y - b.y);
   for (const v of vs) drawVehicle(c, v, { glow: G.vipSel && v.state === 'park' });
   for (const v of G.vehicles) if (v.state === 'move' || v.state === 'leave') drawVehicle(c, v);
